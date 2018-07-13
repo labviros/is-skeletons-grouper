@@ -49,6 +49,9 @@ void SkeletonsData::update(std::unordered_map<int64_t, Skeletons>& sks_2d) {
       this->n_sks++;
     }
   }
+  std::sort(this->cameras.begin(), this->cameras.end());
+  auto last = std::unique(this->cameras.begin(), this->cameras.end());
+  this->cameras.erase(last, this->cameras.end());
 }
 
 void SkeletonsData::clear() {
@@ -106,9 +109,16 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
 }
 
 Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d) {
-  Skeletons skeletons;
-
   this->data.update(sks_2d);
+  if (this->data.n_skeletons() < 2) return Skeletons();
 
-  return skeletons;
+  auto& cameras = this->data.get_cameras();
+  for (auto& cam0 : cameras) {
+    for (auto& cam1 : cameras) {
+      if (cam0 == cam1) continue;
+      // look for matches
+    }
+  }
+
+  return Skeletons();
 }
