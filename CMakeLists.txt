@@ -22,17 +22,17 @@ get_target_property(Protobuf_IMPORT_DIRS is-msgs::is-msgs INTERFACE_INCLUDE_DIRE
 
 PROTOBUF_GENERATE_CPP(src hdr skeletons.proto skeletons_group.proto)
 list(APPEND sources ${src} ${hdr})
-add_library(skeletons ${sources})
-set_property(TARGET skeletons PROPERTY CXX_STANDARD 11)
+add_library(skeletons_msgs ${sources})
+set_property(TARGET skeletons_msgs PROPERTY CXX_STANDARD 11)
 # link dependencies
 target_link_libraries(
-  skeletons
+  skeletons_msgs
  PUBLIC
   ${PROTOBUF_LIBRARIES} 
 )
 # header dependencies
 target_include_directories(
-  skeletons
+  skeletons_msgs
  PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> # for headers when building
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for generated files in build mode
@@ -58,6 +58,23 @@ target_link_libraries(
 set_property(TARGET vision PROPERTY CXX_STANDARD 14)
 
 ######
+#### Build Skeletons library
+######
+find_package(opencv REQUIRED)
+
+add_library(skeletons skeletons_utils.cpp skeletons_grouper.cpp)
+# link dependencies
+target_link_libraries(
+  skeletons
+ PUBLIC
+  is-msgs::is-msgs
+  skeletons_msgs
+  opencv::opencv
+  armadillo::armadillo
+)
+set_property(TARGET skeletons PROPERTY CXX_STANDARD 14)
+
+######
 #### Build debugger binary
 ######
 
@@ -68,8 +85,10 @@ target_link_libraries(
  PRIVATE
   vision
   skeletons
+  skeletons_msgs
   is-msgs::is-msgs # must be placed before is-wire
   armadillo::armadillo
+  opencv::opencv
 )
 
 set_property(TARGET debugger.bin PROPERTY CXX_STANDARD 14)

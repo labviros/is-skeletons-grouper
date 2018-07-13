@@ -5,6 +5,7 @@
 #include "skeletons_group.pb.h"
 #include "stream_pb.hpp"
 #include "vision.hpp"
+#include "skeletons_grouper.hpp"
 
 namespace fs = boost::filesystem;
 
@@ -25,6 +26,7 @@ bool find_id(Container c, T value) {
 
 int main() {
   auto calibrations = load_calibs(calibrs_folder.string(), cameras);
+  SkeletonsGrouper grouper(calibrations, 9999, 50.0);
     
   ProtobufReader reader(detections_file.string());
   for (;;) {
