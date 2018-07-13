@@ -54,7 +54,8 @@ int main() {
       }
       sks_2d[camera].set_model(sk_group->model());
     }
-
+    
+    auto sks_3d = grouper.group(sks_2d);
   }
 
   return 0;
