@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package is.vision;
+
+option java_package = "com.is.vision";
+option java_multiple_files = true;
+
+enum SkeletonModel {
+  COCO = 0;
+  MPII = 1;
+}
+
+enum SkeletonPartType {
+  UNKNOWN = 0;
+  HEAD = 1; // MPI model only
+  NOSE = 2; // Coco model only
+  NECK = 3; // Coco and MPI model
+  RIGHT_SHOULDER = 4; // Coco and MPI model 
+  RIGHT_ELBOW = 5; // Coco and MPI model 
+  RIGHT_WRIST = 6; // Coco and MPI model 
+  LEFT_SHOULDER = 7; // Coco and MPI model 
+  LEFT_ELBOW = 8; // Coco and MPI model 
+  LEFT_WRIST = 9; // Coco and MPI model 
+  RIGHT_HIP = 10; // Coco and MPI model 
+  RIGHT_KNEE = 11; // Coco and MPI model 
+  RIGHT_ANKLE = 12; // Coco and MPI model 
+  LEFT_HIP = 13; // Coco and MPI model 
+  LEFT_KNEE = 14; // Coco and MPI model 
+  LEFT_ANKLE = 15; // Coco and MPI model 
+  RIGHT_EYE = 16; // Coco model only
+  LEFT_EYE = 17; // Coco model only
+  RIGHT_EAR = 18; // Coco model only
+  LEFT_EAR = 19; // Coco model only
+  CHEST = 20; // MPI model only
+  BACKGROUND = 21; // Coco and MPI model
+}
+
+message SkeletonPart { 
+  SkeletonPartType type = 1;
+  float x = 2;
+  float y = 3;
+  float z = 5;
+  float score = 4;
+}
+
+message SkeletonLink {
+  SkeletonPartType begin = 1;
+  SkeletonPartType end = 2;
+}
+
+message Skeleton {
+  repeated SkeletonPart parts = 1;
+}
+
+message Skeletons {
+  repeated Skeleton skeletons = 1;
+  repeated SkeletonLink links = 2;
+  SkeletonModel model = 3;
+}
