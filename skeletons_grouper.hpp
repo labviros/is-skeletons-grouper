@@ -4,6 +4,7 @@
 #include <boost/bimap.hpp>
 #include "is/msgs/camera.pb.h"
 #include "skeletons.pb.h"
+#include "vision.hpp"
 
 using namespace is::vision;
 using namespace boost::bimaps;
@@ -45,7 +46,8 @@ class SkeletonsData {
 
 class SkeletonsGrouper {
  public:
-  SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration> calibrations, int64_t const& referencial,
+  SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration> calibrations,
+                   int64_t const& referencial,
                    double max_mean_d);
 
   Skeletons group(std::unordered_map<int64_t, Skeletons>& sks_2d);
@@ -56,4 +58,8 @@ class SkeletonsGrouper {
   double max_mean_d;
   SkeletonsData data;
   std::map<SkeletonModel, SkeletonPartIndex> part_index_map;
+  std::unordered_map<int64_t /* destination camera */, std::unordered_map<int64_t /* reference camera */, arma::mat>> F;
+
+ private:
+  std::vector<std::pair<unsigned int, unsigned int>> find_matches(int64_t cam0, int64_t cam1);
 };

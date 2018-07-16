@@ -106,19 +106,57 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
   this->part_index_map[SkeletonModel::COCO] = part_index_coco;
 
   this->data.set_index_map(this->part_index_map);
+
+  this->F = compute_fundamentals_matrix(this->calibrations, this->referencial);
 }
 
 Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d) {
   this->data.update(sks_2d);
   if (this->data.n_skeletons() < 2) return Skeletons();
 
+  std::vector<std::vector<int>> matches(this->data.n_skeletons());
   auto& cameras = this->data.get_cameras();
   for (auto& cam0 : cameras) {
     for (auto& cam1 : cameras) {
       if (cam0 == cam1) continue;
-      // look for matches
+      auto matches = this->find_matches(cam0, cam1);
     }
   }
 
   return Skeletons();
+}
+
+std::vector<std::pair<unsigned int, unsigned int>> SkeletonsGrouper::find_matches(int64_t cam0, int64_t cam1) {
+  /*
+    'cam0' -> reference camera
+    'cam1' -> destination camera
+  */
+  struct SkeletonMatch {
+    unsigned int id;
+    double error;
+  };
+  std::map<unsigned int, std::vector<SkeletonMatch>> matches, rev_matches;
+
+  for (auto& sk0_data : this->data.by_cam().at(cam0)) {
+    for (auto& sk1_data : this->data.by_cam().at(cam1)) {
+      auto& sk0_parts = sk0_data->parts;
+      auto& sk1_parts = sk1_data->parts;
+
+      std::vector<arma::uword> common_parts;
+      std::set_intersection(
+          sk0_parts.begin(), sk0_parts.end(), sk1_parts.begin(), sk1_parts.end(), std::back_inserter(common_parts));
+
+      if (common_parts.empty()) continue;
+
+      auto& sk0_points = sk0_data->points;
+      auto& sk1_points = sk1_data->points;
+      arma::urowvec parts(common_parts.data(), common_parts.size(), false, false);
+
+      arma::mat lines0 = epipolar_line(sk1_points, this->F[cam0][cam1]);
+      arma::mat lines1 = epipolar_line(sk0_points, this->F[cam1][cam0]);
+    }
+  }
+
+  std::vector<std::pair<unsigned int, unsigned int>> final_matches;
+  return final_matches;
 }
