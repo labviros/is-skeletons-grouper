@@ -75,13 +75,13 @@ target_link_libraries(
 set_property(TARGET skeletons PROPERTY CXX_STANDARD 14)
 
 ######
-#### Build debugger binary
+#### Build group_dataset binary
 ######
 
-add_executable(debugger.bin debugger.cpp stream_pb.cpp)
+add_executable(group_dataset.bin group_dataset.cpp stream_pb.cpp)
 
 target_link_libraries(
-  debugger.bin
+  group_dataset.bin
  PRIVATE
   vision
   skeletons
@@ -91,4 +91,4 @@ target_link_libraries(
   opencv::opencv
 )
 
-set_property(TARGET debugger.bin PROPERTY CXX_STANDARD 14)
+set_property(TARGET group_dataset.bin PROPERTY CXX_STANDARD 14)

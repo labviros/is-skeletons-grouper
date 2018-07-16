@@ -54,7 +54,7 @@ class SkeletonsGrouper {
                    int64_t const& referencial,
                    double max_mean_d);
 
-  Skeletons group(std::unordered_map<int64_t, Skeletons>& sks_2d, std::unordered_map<int64_t, cv::Mat>& images);
+  Skeletons group(std::unordered_map<int64_t, Skeletons>& sks_2d);
 
  private:
   std::unordered_map<int64_t, CameraCalibration> calibrations;
@@ -65,9 +65,7 @@ class SkeletonsGrouper {
   std::unordered_map<int64_t /* destination camera */, std::unordered_map<int64_t /* reference camera */, arma::mat>> F;
 
  private:
-  std::vector<std::pair<int, int>> find_matches(int64_t cam0,
-                                                int64_t cam1,
-                                                std::unordered_map<int64_t, cv::Mat>& images);
+  std::vector<std::pair<int, int>> find_matches(int64_t cam0, int64_t cam1);
   /*
     Based on algorith to group connected components in an undirected graph
     https://www.geeksforgeeks.org/connected-components-in-an-undirected-graph/

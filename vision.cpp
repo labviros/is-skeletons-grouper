@@ -29,7 +29,10 @@ std::unordered_map<int64_t, is::vision::CameraCalibration> load_calibs(std::stri
 
   for (auto& entry : boost::make_iterator_range(fs::directory_iterator(basedir), {})) {
     auto maybe_calibration = load_calib(entry.path().string());
-    if (maybe_calibration) { calibrations[maybe_calibration->id()] = *maybe_calibration; }
+    if (maybe_calibration) {
+      calibrations[maybe_calibration->id()] = *maybe_calibration;
+      is::info("[CameraCalibration] Loaded: {}", maybe_calibration->id());
+    }
   }
   return calibrations;
 }
@@ -47,9 +50,11 @@ std::unordered_map<int64_t, is::vision::CameraCalibration> load_calibs(std::stri
   for (auto& camera : cameras) {
     auto entry = fs::path(basedir) / fs::path(fmt::format("{}.json", camera));
     auto maybe_calibration = load_calib(entry.string());
-    if (maybe_calibration) { calibrations[maybe_calibration->id()] = *maybe_calibration; }
+    if (maybe_calibration) {
+      calibrations[maybe_calibration->id()] = *maybe_calibration;
+      is::info("[CameraCalibration] Loaded: {}", maybe_calibration->id());
+    }
   }
-
   return calibrations;
 }
 
@@ -78,7 +83,10 @@ arma::mat get_extrinsic(is::vision::CameraCalibration& calib, int64_t const& fro
   auto end = calib.extrinsic().end();
   auto predicate = [&](auto& ext) { return ext.from() == from && ext.to() == camera; };
   auto pos = std::find_if(begin, end, predicate);
-  if (pos == end) { return arma::mat(); }
+  if (pos == end) {
+    is::warn("Camera with ID {} doesn't have extrinsic with \'from\' equals {}", camera, from);
+    return arma::mat();
+  }
   auto index = std::distance(begin, pos);
   return arma_view(calib.mutable_extrinsic(index)->mutable_tf());
 }
