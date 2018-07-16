@@ -26,3 +26,5 @@ std::unordered_map<int64_t, std::unordered_map<int64_t, arma::mat>> compute_fund
     std::unordered_map<int64_t, is::vision::CameraCalibration>& calibrations, int64_t const& referencial);
 
 arma::mat epipolar_line(arma::mat const& points, arma::mat const& F);
+
+double mean_distance(arma::mat const& points, arma::mat const& lines, arma::urowvec const& parts);

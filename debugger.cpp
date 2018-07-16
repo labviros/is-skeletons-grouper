@@ -1,3 +1,6 @@
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 #include <regex>
 #include "boost/filesystem.hpp"
 #include "is/wire/core/logger.hpp"
@@ -14,8 +17,8 @@ auto const dataset = "160422_haggling1";
 auto const dataset_folder = fs::path(base_folder) / fs::path(dataset);
 auto const calibrs_folder = dataset_folder / fs::path("calibrations");
 auto const detections_file = dataset_folder / fs::path(fmt::format("coco_pose_2d{}", ""));
-// std::vector<int64_t> const cameras {1, 2, 4, 6, 7};
-std::vector<int64_t> const cameras{1, 4};
+auto const images_folder = fs::path("/home/felippe/panoptic-images") / fs::path(dataset) / fs::path("hdImgs");
+std::vector<int64_t> const cameras {1, 2, 4, 6, 7};
 
 auto const id_regex = std::regex("\\d\\d[_]\\d(\\d)");
 std::vector<int64_t> const sequence_ids{500, 1000, 1500};
@@ -25,11 +28,23 @@ bool find_id(Container c, T value) {
   return std::find(c.begin(), c.end(), value) != c.end();
 }
 
+std::unordered_map<int64_t, cv::Mat> load_images(std::string const& folder,
+                                                 std::vector<int64_t> const& cameras,
+                                                 int64_t sequence_id) {
+  std::unordered_map<int64_t, cv::Mat> images;
+  for (auto& camera : cameras) {
+    auto filename = fs::path(fmt::format("00_0{}_{:08d}.jpg", camera, sequence_id));
+    auto path = fs::path(folder) / fs::path(fmt::format("00_0{}", camera)) / filename;
+    images[camera] = cv::imread(path.string(), cv::IMREAD_COLOR);
+  }
+  return images;
+}
+
 int main() {
   auto calibrations = load_calibs(calibrs_folder.string(), cameras);
   SkeletonsGrouper grouper(calibrations, 9999, 50.0);
 
-  ProtobufReader reader(detections_file.string());
+  ProtobufReader reader(detections_file.string());  
   for (;;) {
     auto sk_group = reader.next<SkeletonsGroup>();
     if (!sk_group) break;
@@ -55,7 +70,8 @@ int main() {
       sks_2d[camera].set_model(sk_group->model());
     }
 
-    auto sks_3d = grouper.group(sks_2d);
+    auto images = load_images(images_folder.string(), cameras, sk_group->sequence_id());
+    auto sks_3d = grouper.group(sks_2d, images);
   }
 
   return 0;

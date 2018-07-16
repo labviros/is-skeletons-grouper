@@ -110,7 +110,8 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
   this->F = compute_fundamentals_matrix(this->calibrations, this->referencial);
 }
 
-Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d) {
+Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d,
+                                  std::unordered_map<int64_t, cv::Mat>& images) {
   this->data.update(sks_2d);
   if (this->data.n_skeletons() < 2) return Skeletons();
 
@@ -119,14 +120,28 @@ Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d
   for (auto& cam0 : cameras) {
     for (auto& cam1 : cameras) {
       if (cam0 == cam1) continue;
-      auto matches = this->find_matches(cam0, cam1);
+      auto ms = this->find_matches(cam0, cam1, images);
+      std::for_each(ms.begin(), ms.end(), [&](auto& m) {
+        matches[m.first].push_back(m.second);
+        matches[m.second].push_back(m.first);
+      });
     }
   }
 
-  return Skeletons();
+  // remove repeated matches to make group_matches faster
+  for (auto& m : matches) {
+    std::sort(m.begin(), m.end());
+    auto last = std::unique(m.begin(), m.end());
+    m.erase(last, m.end());
+  }
+
+  auto groups = group_matches(matches);
+  return make_3d_skeletons(groups, this->data.get_model());
 }
 
-std::vector<std::pair<unsigned int, unsigned int>> SkeletonsGrouper::find_matches(int64_t cam0, int64_t cam1) {
+std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
+                                                                int64_t cam1,
+                                                                std::unordered_map<int64_t, cv::Mat>& images) {
   /*
     'cam0' -> reference camera
     'cam1' -> destination camera
@@ -154,9 +169,178 @@ std::vector<std::pair<unsigned int, unsigned int>> SkeletonsGrouper::find_matche
 
       arma::mat lines0 = epipolar_line(sk1_points, this->F[cam0][cam1]);
       arma::mat lines1 = epipolar_line(sk0_points, this->F[cam1][cam0]);
+
+      auto m_error0 = mean_distance(sk0_points, lines0, parts);
+      auto m_error1 = mean_distance(sk1_points, lines1, parts);
+      auto error = m_error0 + m_error1;
+      
+      if (true) {  // debug
+        std::cout << "[cam" << cam0 << "]->[cam" << cam1 << "] error: " << m_error0 << " | " << m_error1 << '\n';
+        cv::Mat img0 = images[cam0].clone();
+        cv::Mat img1 = images[cam1].clone();
+
+        render_skeletons(img0, sk0_data, common_parts);
+        render_skeletons(img1, sk1_data, common_parts);
+        render_epipolar_lines(img0, lines0, common_parts);
+        render_epipolar_lines(img1, lines1, common_parts);
+
+        cv::resize(img0, img0, cv::Size(0, 0), 0.5, 0.5);
+        cv::resize(img1, img1, cv::Size(0, 0), 0.5, 0.5);
+        cv::Mat full_image;
+        cv::hconcat(img0, img1, full_image);
+
+        cv::imshow("", full_image);
+        while (true) {
+          auto key = cv::waitKey(1);
+          if (key == 'n' || key == 'N') break;
+        }
+      }
+
+      if (error > this->max_mean_d) continue;
+
+      auto& id0 = sk0_data->id;
+      auto& id1 = sk1_data->id;
+      matches[id0].push_back({.id = id1, .error = m_error0});
+      rev_matches[id1].push_back({.id = id0, .error = m_error1});
+
     }
   }
 
-  std::vector<std::pair<unsigned int, unsigned int>> final_matches;
+  // keep on matches just matches with smaller error
+  for (auto& rvm : rev_matches) {
+    if (rvm.second.size() < 2) continue;
+    auto id_match = rvm.first;
+    auto& rv = rvm.second;
+    auto best_match =
+        std::min_element(rv.begin(), rv.end(), [](auto& lhs, auto& rhs) { return lhs.error < rhs.error; });
+    for (auto it = rv.begin(); it != rv.end(); ++it) {
+      if (it == best_match) continue;
+      auto id_ref = it->id;
+      std::vector<SkeletonMatch> new_matches;
+      auto const copy_matches = [&](auto lid, auto rid) {
+        std::copy_if(matches[lid].begin(), matches[lid].end(), std::back_inserter(new_matches), [&](auto& m) {
+          return m.id != rid;
+        });
+      };
+      copy_matches(id_ref, id_match);
+      matches[id_ref] = new_matches;
+      new_matches.clear();
+      copy_matches(id_match, id_ref);
+      matches[id_match] = new_matches;
+    }
+  }
+
+  std::vector<std::pair<int, int>> final_matches;
+  for (auto& m : matches) {
+    auto& id_ref = m.first;
+    if (m.second.empty()) continue;
+    auto& id_match = m.second.front().id;
+    final_matches.emplace_back(id_ref, id_match);
+  }
   return final_matches;
+}
+
+std::vector<std::vector<int>> SkeletonsGrouper::group_matches(std::vector<std::vector<int>>& matches) {
+  std::vector<std::vector<int>> groups;
+  auto n_labels = matches.size();
+  std::vector<bool> visited(n_labels, false);
+
+  const std::function<void(int, std::vector<bool>&, std::vector<int>&)> traverse =
+      [&](int n, std::vector<bool>& visited, std::vector<int>& connected) {
+        visited[n] = true;
+        connected.push_back(n);
+        for (auto& k : matches[n]) {
+          if (!visited[k]) traverse(k, visited, connected);
+        }
+      };
+
+  for (size_t n = 0; n < n_labels; n++) {
+    if (!visited[n]) {
+      std::vector<int> connected;
+      traverse(n, visited, connected);
+      groups.push_back(connected);
+    }
+  }
+  return groups;
+}
+
+Skeletons SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<int>>& groups, SkeletonModel& model) {
+  Skeletons sks_3d;
+  for (auto& group : groups) {
+    if (group.size() < 2) continue;
+
+    std::map<arma::uword /* part matrix column */, std::vector<unsigned int> /* skeleton id */> sk_parts;
+    std::for_each(group.begin(), group.end(), [&](auto& sk_id) {
+      auto& parts = this->data.by_id()[sk_id]->parts;
+      std::for_each(parts.begin(), parts.end(), [&](auto& part) { sk_parts[part].push_back(sk_id); });
+    });
+
+    auto skeleton = sks_3d.add_skeletons();
+    for (auto& part_ids : sk_parts) {
+      auto& part = part_ids.first;
+      auto& skeletons = part_ids.second;
+      if (skeletons.size() < 2) continue;
+      *skeleton->add_parts() = make_3d_part(part, skeletons, this->part_index_map[model]);
+    }
+  }
+  return sks_3d;
+}
+
+SkeletonPart SkeletonsGrouper::make_3d_part(arma::uword const& part,
+                                            std::vector<unsigned int>& skeletons,
+                                            SkeletonPartIndex& part_index_map) {
+  SkeletonPart sk_part;
+  auto n_skeletons = skeletons.size();
+  arma::mat A(3 * n_skeletons, 3 + n_skeletons, arma::fill::zeros);
+  arma::vec b(3 * n_skeletons);
+  auto indices = arma::regspace<arma::uvec>(0, 3 * 3 * n_skeletons - 1);
+  A.elem(indices) = arma::repmat(-1.0 * arma::eye(3, 3), n_skeletons, 1);
+  for (size_t k = 0; k < n_skeletons; ++k) {
+    auto& sk_id = skeletons[k];
+    auto& sk = this->data.by_id()[sk_id];
+    auto m = sk->points.col(part);
+    auto& calib = this->calibrations[sk->camera];
+    arma::mat K = arma_view(calib.mutable_intrinsic());
+    arma::mat RT = get_extrinsic(calib, this->referencial);
+    if (RT.is_empty()) continue;
+    arma::mat R = RT.submat(0, 0, 2, 2);
+    arma::mat t = RT.col(3).rows(0, 2);
+    auto base_index = A.n_rows * (3 + k) + 3 * k;
+    indices.clear();
+    indices << base_index << base_index + 1 << base_index + 2;
+    A.elem(indices) = (K * R).i() * m;  // W matrix (see article)
+    indices.clear();
+    base_index = 3 * k;
+    indices << base_index << base_index + 1 << base_index + 2;
+    b.elem(indices) = R.i() * t;
+  }
+  arma::vec X = arma::pinv(A) * b;
+  sk_part.set_x(X[0]);
+  sk_part.set_y(X[1]);
+  sk_part.set_z(X[2]);
+  sk_part.set_type(part_index_map.by<col_index>().at(part));
+  return sk_part;
+}
+
+void render_skeletons(cv::Mat& image, HSkeleton_ptr& sk_data, std::vector<arma::uword>& common_parts) {
+  auto& parts = sk_data->parts;
+  auto& points = sk_data->points;
+  for (auto& part : parts) {
+    auto pos = std::find(common_parts.begin(), common_parts.end(), part);
+    auto color = pos == common_parts.end() ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0);
+    cv::Point p(points(0, part), points(1, part));
+    cv::circle(image, p, 3, color, 3);
+  }
+}
+
+void render_epipolar_lines(cv::Mat& image, arma::mat& lines, std::vector<arma::uword>& common_parts) {
+  auto w = image.cols;
+  for (auto& part : common_parts) {
+    auto a = lines(0, part);
+    auto b = lines(1, part);
+    auto c = lines(2, part);
+    cv::Point p1(0.0, -c / b);
+    cv::Point p2(w, -(c + w * a) / b);
+    cv::line(image, p1, p2, cv::Scalar(0, 255, 255), 2);
+  }
 }

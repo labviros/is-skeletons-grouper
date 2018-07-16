@@ -127,3 +127,7 @@ arma::mat epipolar_line(arma::mat const& points, arma::mat const& F) {
   if (l.has_inf()) throw std::runtime_error("@epipolar_line: lines matrix has 'not a number' value");
   return l;
 }
+
+double mean_distance(arma::mat const& points, arma::mat const& lines, arma::urowvec const& parts) {
+  return arma::mean(arma::vectorise(arma::abs(arma::sum(points.cols(parts) % lines.cols(parts), 0))));
+}
