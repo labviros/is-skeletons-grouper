@@ -1,3 +1,6 @@
+// TODO: scale intrinsic parameters based on received resolution
+// maybe add the scale matrix to the SkeletonData
+
 #include <chrono>
 #include <regex>
 #include "is/wire/core.hpp"
