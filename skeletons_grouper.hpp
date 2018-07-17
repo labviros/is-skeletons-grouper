@@ -1,9 +1,5 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
 #include <armadillo>
 #include <boost/bimap.hpp>
 #include "is/msgs/camera.pb.h"
@@ -77,6 +73,3 @@ class SkeletonsGrouper {
                             std::vector<unsigned int>& skeletons,
                             SkeletonPartIndex& part_index_map);
 };
-
-void render_skeletons(cv::Mat& image, HSkeleton_ptr& sk_data, std::vector<arma::uword>& common_parts);
-void render_epipolar_lines(cv::Mat& image, arma::mat& lines, std::vector<arma::uword>& common_parts);
