@@ -4,5 +4,6 @@
   "zipkin_port": 30200,
   "cameras_ids": [0, 1, 2, 3, 4],
   "referencial": 1000,
-  "min_error": 50.0
+  "min_error": 50.0,
+  "period_ms": 100
 }
