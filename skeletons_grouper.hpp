@@ -7,43 +7,48 @@
 #include <armadillo>
 #include <boost/bimap.hpp>
 #include "is/msgs/camera.pb.h"
-#include "skeletons.pb.h"
+#include "is/msgs/image.pb.h"
 #include "vision.hpp"
 
 using namespace is::vision;
 using namespace boost::bimaps;
 
 struct col_index {};
-struct sk_type {};
-typedef bimap<tagged<SkeletonPartType, sk_type>, tagged<arma::uword, col_index>> SkeletonPartIndex;
+struct human_keypoint {};
+typedef bimap<tagged<int64_t/* HumanKeypoints */, human_keypoint>, tagged<arma::uword, col_index>> HumanKeypointIndex;
 
 struct HSkeleton {
-  HSkeleton(Skeleton* sk, int64_t const& camera, unsigned int id, SkeletonPartIndex& part_index_map);
-  Skeleton* skeleton;
+  HSkeleton(ObjectAnnotation* sk,
+            int64_t const& camera,
+            unsigned int id,
+            arma::mat const& scale_intrinsic,
+            HumanKeypointIndex& part_index_map);
+  ObjectAnnotation* skeleton;
   int64_t camera;
   unsigned int id;
   std::set<arma::uword> parts;
   arma::mat points;
+  arma::mat scale_intrinsic;
 };
 
 typedef std::shared_ptr<HSkeleton> HSkeleton_ptr;
 
 class SkeletonsData {
  public:
-  void update(std::unordered_map<int64_t, Skeletons>& sks_2d);
+  void update(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
   std::map<int64_t, std::vector<HSkeleton_ptr>>& by_cam();
   std::map<unsigned int, HSkeleton_ptr>& by_id();
   std::vector<int64_t>& get_cameras();
-  SkeletonModel& get_model();
   unsigned int n_skeletons();
-  void set_index_map(std::map<SkeletonModel, SkeletonPartIndex> const& part_index_map);
+  void set_index_map(HumanKeypointIndex const& part_index_map);
+  void set_calibrations(std::unordered_map<int64_t, CameraCalibration> const& calibs);
 
  private:
-  std::map<SkeletonModel, SkeletonPartIndex> part_index_map;
   std::map<int64_t, std::vector<HSkeleton_ptr>> sks_2d_cam;
   std::map<unsigned int, HSkeleton_ptr> sks_2d_id;
+  HumanKeypointIndex part_index_map;
+  std::unordered_map<int64_t, CameraCalibration> calibs;
   std::vector<int64_t> cameras;
-  SkeletonModel model;
   unsigned int n_sks;
   void clear();
 };
@@ -54,14 +59,15 @@ class SkeletonsGrouper {
                    int64_t const& referencial,
                    double max_mean_d);
 
-  Skeletons group(std::unordered_map<int64_t, Skeletons>& sks_2d, std::unordered_map<int64_t, cv::Mat>& images);
+  ObjectAnnotations group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d,
+                          std::unordered_map<int64_t, cv::Mat>& images);
 
  private:
   std::unordered_map<int64_t, CameraCalibration> calibrations;
   int64_t referencial;
   double max_mean_d;
   SkeletonsData data;
-  std::map<SkeletonModel, SkeletonPartIndex> part_index_map;
+  HumanKeypointIndex part_index_map;
   std::unordered_map<int64_t /* destination camera */, std::unordered_map<int64_t /* reference camera */, arma::mat>> F;
 
  private:
@@ -74,10 +80,8 @@ class SkeletonsGrouper {
   */
   std::vector<std::vector<int>> group_matches(std::vector<std::vector<int>>& matches);
 
-  Skeletons make_3d_skeletons(std::vector<std::vector<int>>& groups, SkeletonModel& model);
-  SkeletonPart make_3d_part(arma::uword const& part,
-                            std::vector<unsigned int>& skeletons,
-                            SkeletonPartIndex& part_index_map);
+  ObjectAnnotations make_3d_skeletons(std::vector<std::vector<int>>& groups);
+  PointAnnotation make_3d_part(arma::uword const& part, std::vector<unsigned int>& skeletons);
 };
 
 void render_skeletons(cv::Mat& image, HSkeleton_ptr& sk_data, std::vector<arma::uword>& common_parts);

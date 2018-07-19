@@ -3,7 +3,7 @@ syntax = "proto3";
 import "skeletons.proto";
 
 message SkeletonId {
-    is.vision.Skeleton skeleton = 1;
+    sks.Skeleton skeleton = 1;
     int32 id = 2;
 }
 
@@ -14,5 +14,5 @@ message SkeletonsId {
 message SkeletonsGroup {
     int32 sequence_id = 1;
     map<string, SkeletonsId> detections = 2;
-    is.vision.SkeletonModel model = 3;
+    sks.SkeletonModel model = 3;
 }

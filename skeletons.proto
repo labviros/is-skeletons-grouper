@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package is.vision;
+package sks;
 
 option java_package = "com.is.vision";
 option java_multiple_files = true;

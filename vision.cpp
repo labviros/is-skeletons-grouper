@@ -118,8 +118,8 @@ std::unordered_map<int64_t, std::unordered_map<int64_t, arma::mat>> compute_fund
   return F;
 }
 
-arma::mat epipolar_line(arma::mat const& points, arma::mat const& F) {
-  arma::mat l = F * points;
+arma::mat epipolar_line(arma::mat const& points, arma::mat const& F, arma::mat const& sc0, arma::mat const& sc1) {
+  arma::mat l = sc0.i() * F * sc1.i() * points;
   arma::rowvec k = arma::sqrt(arma::square(l.row(0)) + arma::square(l.row(1)));
   l.each_row() /= k;
   // check if it's necessery check these values
@@ -128,6 +128,19 @@ arma::mat epipolar_line(arma::mat const& points, arma::mat const& F) {
   return l;
 }
 
+arma::mat epipolar_line(arma::mat const& points, arma::mat const& F) {
+  return epipolar_line(points, F, arma::eye(3, 3), arma::eye(3, 3));
+}
+
 double mean_distance(arma::mat const& points, arma::mat const& lines, arma::urowvec const& parts) {
   return arma::mean(arma::vectorise(arma::abs(arma::sum(points.cols(parts) % lines.cols(parts), 0))));
+}
+
+arma::mat intrinsic_scale_matrix(is::vision::Resolution const& image_res, is::vision::Resolution const& camera_res) {
+  auto sx = static_cast<double>(image_res.width()) / static_cast<double>(camera_res.width());
+  auto sy = static_cast<double>(image_res.height()) / static_cast<double>(camera_res.height());
+  arma::mat sc = {
+      {sx, 0.0, 0.0}, {0.0, sy, 0.0}, {0.0, 0.0, 1.0},
+  };
+  return sc;
 }

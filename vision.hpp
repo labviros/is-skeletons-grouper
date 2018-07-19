@@ -6,6 +6,7 @@
 #include "boost/optional.hpp"
 #include "is/msgs/camera.pb.h"
 #include "is/msgs/common.pb.h"
+#include "is/msgs/image.pb.h"
 
 boost::optional<is::vision::CameraCalibration> load_calib(std::string const& path);
 
@@ -27,4 +28,8 @@ std::unordered_map<int64_t, std::unordered_map<int64_t, arma::mat>> compute_fund
 
 arma::mat epipolar_line(arma::mat const& points, arma::mat const& F);
 
+arma::mat epipolar_line(arma::mat const& points, arma::mat const& F, arma::mat const& sc0, arma::mat const& sc1);
+
 double mean_distance(arma::mat const& points, arma::mat const& lines, arma::urowvec const& parts);
+
+arma::mat intrinsic_scale_matrix(is::vision::Resolution const& image_res, is::vision::Resolution const& camera_res);

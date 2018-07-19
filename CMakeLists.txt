@@ -62,7 +62,7 @@ set_property(TARGET vision PROPERTY CXX_STANDARD 14)
 ######
 find_package(opencv REQUIRED)
 
-add_library(skeletons skeletons_utils.cpp skeletons_grouper.cpp)
+add_library(skeletons skeletons_grouper.cpp)
 # link dependencies
 target_link_libraries(
   skeletons

@@ -1,13 +1,21 @@
 #include "skeletons_grouper.hpp"
 
-HSkeleton::HSkeleton(Skeleton* sk, int64_t const& camera, unsigned int id, SkeletonPartIndex& part_index_map)
-    : skeleton(sk), camera(camera), id(id), points(3, part_index_map.size(), arma::fill::ones) {
-  std::for_each(this->skeleton->parts().begin(), this->skeleton->parts().end(), [&](auto& part) {
-    auto p = part_index_map.by<sk_type>().at(part.type());
+HSkeleton::HSkeleton(ObjectAnnotation* sk,
+                     int64_t const& camera,
+                     unsigned int id,
+                     arma::mat const& scale_intrinsic,
+                     HumanKeypointIndex& part_index_map)
+    : skeleton(sk),
+      camera(camera),
+      id(id),
+      points(3, part_index_map.size(), arma::fill::ones),
+      scale_intrinsic(scale_intrinsic) {
+  for (auto& part : sk->keypoints()) {
+    auto p = part_index_map.by<human_keypoint>().at(part.id());
     this->parts.insert(p);
-    this->points.at(0, p) = part.x();
-    this->points.at(1, p) = part.y();
-  });
+    this->points.at(0, p) = part.position().x();
+    this->points.at(1, p) = part.position().y();
+  }
 }
 
 std::map<int64_t, std::vector<HSkeleton_ptr>>& SkeletonsData::by_cam() {
@@ -22,33 +30,36 @@ std::vector<int64_t>& SkeletonsData::get_cameras() {
   return this->cameras;
 }
 
-SkeletonModel& SkeletonsData::get_model() {
-  return this->model;
-}
-
 unsigned int SkeletonsData::n_skeletons() {
   return this->n_sks;
 }
 
-void SkeletonsData::set_index_map(std::map<SkeletonModel, SkeletonPartIndex> const& part_index_map) {
+void SkeletonsData::set_index_map(HumanKeypointIndex const& part_index_map) {
   this->part_index_map = part_index_map;
 }
 
-void SkeletonsData::update(std::unordered_map<int64_t, Skeletons>& sks_2d) {
+void SkeletonsData::set_calibrations(std::unordered_map<int64_t, CameraCalibration> const& calibs) {
+  this->calibs = calibs;
+}
+
+void SkeletonsData::update(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d) {
   this->clear();
   for (auto& ss : sks_2d) {
     auto camera = ss.first;
     auto& sks = ss.second;
-    this->model = sks.model();
-    for (auto k = 0; k < sks.skeletons_size(); ++k) {
-      auto sk = sks.mutable_skeletons(k);
-      HSkeleton_ptr hs = std::make_shared<HSkeleton>(sk, camera, this->n_sks, this->part_index_map[model]);
+    for (auto k = 0; k < sks.objects_size(); ++k) {
+      auto sk = sks.mutable_objects(k);
+      auto image_res = sks.resolution();
+      auto calib_res = this->calibs[camera].resolution();
+      arma::mat sc = intrinsic_scale_matrix(image_res, calib_res);
+      HSkeleton_ptr hs = std::make_shared<HSkeleton>(sk, camera, this->n_sks, sc, this->part_index_map);
       this->sks_2d_cam[camera].push_back(hs);
       this->sks_2d_id[this->n_sks] = hs;
       this->cameras.push_back(camera);
       this->n_sks++;
     }
   }
+  // remove repeated cameras
   std::sort(this->cameras.begin(), this->cameras.end());
   auto last = std::unique(this->cameras.begin(), this->cameras.end());
   this->cameras.erase(last, this->cameras.end());
@@ -65,55 +76,44 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
                                    int64_t const& referencial,
                                    double max_mean_d = 50.0)
     : calibrations(calibrations), referencial(referencial), max_mean_d(max_mean_d) {
-  SkeletonPartIndex part_index_mpii;
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::NECK, 0));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::HEAD, 1));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::CHEST, 2));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_SHOULDER, 3));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_ELBOW, 4));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_WRIST, 5));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_HIP, 6));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_KNEE, 7));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_ANKLE, 8));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_SHOULDER, 9));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_ELBOW, 10));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_WRIST, 11));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_HIP, 12));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_KNEE, 13));
-  part_index_mpii.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_ANKLE, 14));
-  this->part_index_map[SkeletonModel::MPII] = part_index_mpii;
+  const auto add_to_part_index_map = [&](std::string const& key_name, auto const& col_value) {
+    const auto* descriptor = HumanKeypoints_descriptor();
+    auto key_value = descriptor->FindValueByName(key_name)->number();
+    this->part_index_map.insert(HumanKeypointIndex::value_type(key_value, col_value));
+  };
 
-  SkeletonPartIndex part_index_coco;
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::NECK, 0));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::NOSE, 1));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::BACKGROUND, 2));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_SHOULDER, 3));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_ELBOW, 4));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_WRIST, 5));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_HIP, 6));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_KNEE, 7));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_ANKLE, 8));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_SHOULDER, 9));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_ELBOW, 10));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_WRIST, 11));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_HIP, 12));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_KNEE, 13));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_ANKLE, 14));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_EYE, 15));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::LEFT_EAR, 16));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_EYE, 17));
-  part_index_coco.insert(SkeletonPartIndex::value_type(SkeletonPartType::RIGHT_EAR, 18));
-  this->part_index_map[SkeletonModel::COCO] = part_index_coco;
+  add_to_part_index_map("HEAD", 0);
+  add_to_part_index_map("NOSE", 1);
+  add_to_part_index_map("NECK", 2);
+  add_to_part_index_map("RIGHT_SHOULDER", 3);
+  add_to_part_index_map("RIGHT_ELBOW", 4);
+  add_to_part_index_map("RIGHT_WRIST", 5);
+  add_to_part_index_map("LEFT_SHOULDER", 6);
+  add_to_part_index_map("LEFT_ELBOW", 7);
+  add_to_part_index_map("LEFT_WRIST", 8);
+  add_to_part_index_map("RIGHT_HIP", 9);
+  add_to_part_index_map("RIGHT_KNEE", 10);
+  add_to_part_index_map("RIGHT_ANKLE", 11);
+  add_to_part_index_map("LEFT_HIP", 12);
+  add_to_part_index_map("LEFT_KNEE", 13);
+  add_to_part_index_map("LEFT_ANKLE", 14);
+  add_to_part_index_map("RIGHT_EYE", 15);
+  add_to_part_index_map("LEFT_EYE", 16);
+  add_to_part_index_map("RIGHT_EAR", 17);
+  add_to_part_index_map("LEFT_EAR", 18);
+  add_to_part_index_map("CHEST", 19);
 
   this->data.set_index_map(this->part_index_map);
+  this->data.set_calibrations(this->calibrations);
 
   this->F = compute_fundamentals_matrix(this->calibrations, this->referencial);
 }
 
-Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d,
-                                  std::unordered_map<int64_t, cv::Mat>& images) {
+ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d,
+                                          std::unordered_map<int64_t, cv::Mat>& images) {
+  // TODO: check if cameras received are available
   this->data.update(sks_2d);
-  if (this->data.n_skeletons() < 2) return Skeletons();
+  if (this->data.n_skeletons() < 2) return ObjectAnnotations();
 
   std::vector<std::vector<int>> matches(this->data.n_skeletons());
   auto& cameras = this->data.get_cameras();
@@ -136,7 +136,7 @@ Skeletons SkeletonsGrouper::group(std::unordered_map<int64_t, Skeletons>& sks_2d
   }
 
   auto groups = group_matches(matches);
-  return make_3d_skeletons(groups, this->data.get_model());
+  return make_3d_skeletons(groups);
 }
 
 std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
@@ -167,13 +167,15 @@ std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
       auto& sk1_points = sk1_data->points;
       arma::urowvec parts(common_parts.data(), common_parts.size(), false, false);
 
-      arma::mat lines0 = epipolar_line(sk1_points, this->F[cam0][cam1]);
-      arma::mat lines1 = epipolar_line(sk0_points, this->F[cam1][cam0]);
+      auto& sc0_intrinsic = sk0_data->scale_intrinsic;
+      auto& sc1_intrinsic = sk1_data->scale_intrinsic;
 
+      arma::mat lines0 = epipolar_line(sk1_points, this->F[cam0][cam1], sc0_intrinsic, sc1_intrinsic);
+      arma::mat lines1 = epipolar_line(sk0_points, this->F[cam1][cam0], sc1_intrinsic, sc0_intrinsic);
       auto m_error0 = mean_distance(sk0_points, lines0, parts);
       auto m_error1 = mean_distance(sk1_points, lines1, parts);
       auto error = m_error0 + m_error1;
-      
+
       if (true) {  // debug
         std::cout << "[cam" << cam0 << "]->[cam" << cam1 << "] error: " << m_error0 << " | " << m_error1 << '\n';
         cv::Mat img0 = images[cam0].clone();
@@ -186,10 +188,10 @@ std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
 
         cv::resize(img0, img0, cv::Size(0, 0), 0.5, 0.5);
         cv::resize(img1, img1, cv::Size(0, 0), 0.5, 0.5);
-        cv::Mat full_image;
-        cv::hconcat(img0, img1, full_image);
 
-        cv::imshow("", full_image);
+        cv::imshow("cam0", img0);
+        cv::imshow("cam1", img1);
+        // cv::waitKey(1);
         while (true) {
           auto key = cv::waitKey(1);
           if (key == 'n' || key == 'N') break;
@@ -202,7 +204,6 @@ std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
       auto& id1 = sk1_data->id;
       matches[id0].push_back({.id = id1, .error = m_error0});
       rev_matches[id1].push_back({.id = id0, .error = m_error1});
-
     }
   }
 
@@ -264,8 +265,8 @@ std::vector<std::vector<int>> SkeletonsGrouper::group_matches(std::vector<std::v
   return groups;
 }
 
-Skeletons SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<int>>& groups, SkeletonModel& model) {
-  Skeletons sks_3d;
+ObjectAnnotations SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<int>>& groups) {
+  ObjectAnnotations sks_3d;
   for (auto& group : groups) {
     if (group.size() < 2) continue;
 
@@ -275,21 +276,19 @@ Skeletons SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<int>>& gro
       std::for_each(parts.begin(), parts.end(), [&](auto& part) { sk_parts[part].push_back(sk_id); });
     });
 
-    auto skeleton = sks_3d.add_skeletons();
+    auto skeleton = sks_3d.add_objects();
     for (auto& part_ids : sk_parts) {
       auto& part = part_ids.first;
       auto& skeletons = part_ids.second;
       if (skeletons.size() < 2) continue;
-      *skeleton->add_parts() = make_3d_part(part, skeletons, this->part_index_map[model]);
+      *skeleton->add_keypoints() = make_3d_part(part, skeletons);
     }
   }
   return sks_3d;
 }
 
-SkeletonPart SkeletonsGrouper::make_3d_part(arma::uword const& part,
-                                            std::vector<unsigned int>& skeletons,
-                                            SkeletonPartIndex& part_index_map) {
-  SkeletonPart sk_part;
+PointAnnotation SkeletonsGrouper::make_3d_part(arma::uword const& part, std::vector<unsigned int>& skeletons) {
+  PointAnnotation sk_part;
   auto n_skeletons = skeletons.size();
   arma::mat A(3 * n_skeletons, 3 + n_skeletons, arma::fill::zeros);
   arma::vec b(3 * n_skeletons);
@@ -300,7 +299,8 @@ SkeletonPart SkeletonsGrouper::make_3d_part(arma::uword const& part,
     auto& sk = this->data.by_id()[sk_id];
     auto m = sk->points.col(part);
     auto& calib = this->calibrations[sk->camera];
-    arma::mat K = arma_view(calib.mutable_intrinsic());
+    arma::mat scale_intrinsic = sk->scale_intrinsic;
+    arma::mat K = scale_intrinsic * arma_view(calib.mutable_intrinsic());
     arma::mat RT = get_extrinsic(calib, this->referencial);
     if (RT.is_empty()) continue;
     arma::mat R = RT.submat(0, 0, 2, 2);
@@ -315,10 +315,10 @@ SkeletonPart SkeletonsGrouper::make_3d_part(arma::uword const& part,
     b.elem(indices) = R.i() * t;
   }
   arma::vec X = arma::pinv(A) * b;
-  sk_part.set_x(X[0]);
-  sk_part.set_y(X[1]);
-  sk_part.set_z(X[2]);
-  sk_part.set_type(part_index_map.by<col_index>().at(part));
+  sk_part.mutable_position()->set_x(X[0]);
+  sk_part.mutable_position()->set_y(X[1]);
+  sk_part.mutable_position()->set_z(X[2]);
+  sk_part.set_id(this->part_index_map.by<col_index>().at(part));
   return sk_part;
 }
 
