@@ -13,19 +13,16 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conan_paths.cmake)
 endif()
 
 ######
-#### Build Protobufs
+#### Build Options protobuf
 ######
 
 find_package(Protobuf REQUIRED)
 PROTOBUF_GENERATE_CPP(options_src options_hdr options.proto)
 
-find_package(is-msgs REQUIRED)
-get_target_property(Protobuf_IMPORT_DIRS is-msgs::is-msgs INTERFACE_INCLUDE_DIRECTORIES)
-PROTOBUF_GENERATE_CPP(skeletons_src skeletons_hdr skeletons.proto)
-
 # ######
 # #### Build Vision library
 # ######
+
 
 find_package(is-wire REQUIRED)
 find_package(armadillo REQUIRED)
@@ -44,15 +41,10 @@ set_property(TARGET vision PROPERTY CXX_STANDARD 14)
 # ######
 # #### Build Skeletons library
 # ######
-add_library(skeletons skeletons_grouper.hpp skeletons_grouper.cpp ${skeletons_hdr} ${skeletons_src})
 
-target_include_directories(
-  skeletons
- PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for generated files in build mode
-)
 
-# link dependencies
+add_library(skeletons skeletons_grouper.hpp skeletons_grouper.cpp)
+
 target_link_libraries(
   skeletons
  PUBLIC
@@ -60,13 +52,20 @@ target_link_libraries(
  PRIVATE
   armadillo::armadillo
 )
+
 set_property(TARGET skeletons PROPERTY CXX_STANDARD 14)
 
-# ######
-# #### Build service binary
-# ######
+# # ######
+# # #### Build service binary
+# # ######
 
 add_executable(service.bin service.cpp ${options_hdr} ${options_src})
+
+target_include_directories(
+  service.bin 
+ PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for generated files in build mode
+)
 
 target_link_libraries(
   service.bin
