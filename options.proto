@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package is;
+
+message SkeletonsGrouperOptions {
+  string broker_uri = 1;
+  string zipkin_host = 2;
+  uint32 zipkin_port = 3;
+  repeated int64 cameras_ids = 4;
+  int64 referencial = 5;
+  double min_error = 6;
+  uint32 period_ms = 7;
+}

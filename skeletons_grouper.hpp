@@ -1,9 +1,5 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
 #include <armadillo>
 #include <boost/bimap.hpp>
 #include "is/msgs/camera.pb.h"
@@ -59,8 +55,7 @@ class SkeletonsGrouper {
                    int64_t const& referencial,
                    double max_mean_d);
 
-  ObjectAnnotations group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d,
-                          std::unordered_map<int64_t, cv::Mat>& images);
+  ObjectAnnotations group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
 
  private:
   std::unordered_map<int64_t, CameraCalibration> calibrations;
@@ -71,9 +66,7 @@ class SkeletonsGrouper {
   std::unordered_map<int64_t /* destination camera */, std::unordered_map<int64_t /* reference camera */, arma::mat>> F;
 
  private:
-  std::vector<std::pair<int, int>> find_matches(int64_t cam0,
-                                                int64_t cam1,
-                                                std::unordered_map<int64_t, cv::Mat>& images);
+  std::vector<std::pair<int, int>> find_matches(int64_t cam0, int64_t cam1);
   /*
     Based on algorith to group connected components in an undirected graph
     https://www.geeksforgeeks.org/connected-components-in-an-undirected-graph/
@@ -83,6 +76,3 @@ class SkeletonsGrouper {
   ObjectAnnotations make_3d_skeletons(std::vector<std::vector<int>>& groups);
   PointAnnotation make_3d_part(arma::uword const& part, std::vector<unsigned int>& skeletons);
 };
-
-void render_skeletons(cv::Mat& image, HSkeleton_ptr& sk_data, std::vector<arma::uword>& common_parts);
-void render_epipolar_lines(cv::Mat& image, arma::mat& lines, std::vector<arma::uword>& common_parts);

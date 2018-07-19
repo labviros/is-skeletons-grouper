@@ -13,82 +13,67 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conan_paths.cmake)
 endif()
 
 ######
-#### Build Proto Options
+#### Build Protobufs
 ######
+
+find_package(Protobuf REQUIRED)
+PROTOBUF_GENERATE_CPP(options_src options_hdr options.proto)
 
 find_package(is-msgs REQUIRED)
-find_package(Protobuf REQUIRED)
 get_target_property(Protobuf_IMPORT_DIRS is-msgs::is-msgs INTERFACE_INCLUDE_DIRECTORIES)
+PROTOBUF_GENERATE_CPP(skeletons_src skeletons_hdr skeletons.proto)
 
-PROTOBUF_GENERATE_CPP(src hdr skeletons.proto skeletons_group.proto)
-list(APPEND sources ${src} ${hdr})
-add_library(skeletons_msgs ${sources})
-set_property(TARGET skeletons_msgs PROPERTY CXX_STANDARD 11)
-# link dependencies
-target_link_libraries(
-  skeletons_msgs
- PUBLIC
-  ${PROTOBUF_LIBRARIES} 
-)
-# header dependencies
-target_include_directories(
-  skeletons_msgs
- PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}> # for headers when building
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for generated files in build mode
- PUBLIC
-  ${PROTOBUF_INCLUDE_DIRS} 
-)
+# ######
+# #### Build Vision library
+# ######
 
-######
-#### Build Vision library
-######
 find_package(is-wire REQUIRED)
 find_package(armadillo REQUIRED)
 
 add_library(vision vision.cpp)
-# link dependencies
+
 target_link_libraries(
   vision
  PUBLIC
-  is-msgs::is-msgs
-  is-wire::is-wire
   armadillo::armadillo
+ PRIVATE
+  is-wire::is-wire
 )
 set_property(TARGET vision PROPERTY CXX_STANDARD 14)
 
-######
-#### Build Skeletons library
-######
-find_package(opencv REQUIRED)
+# ######
+# #### Build Skeletons library
+# ######
+add_library(skeletons skeletons_grouper.hpp skeletons_grouper.cpp ${skeletons_hdr} ${skeletons_src})
 
-add_library(skeletons skeletons_grouper.cpp)
+target_include_directories(
+  skeletons
+ PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for generated files in build mode
+)
+
 # link dependencies
 target_link_libraries(
   skeletons
  PUBLIC
   is-msgs::is-msgs
-  skeletons_msgs
-  opencv::opencv
+ PRIVATE
   armadillo::armadillo
 )
 set_property(TARGET skeletons PROPERTY CXX_STANDARD 14)
 
-######
-#### Build debugger binary
-######
+# ######
+# #### Build service binary
+# ######
 
-add_executable(debugger.bin debugger.cpp stream_pb.cpp)
+add_executable(service.bin service.cpp ${options_hdr} ${options_src})
 
 target_link_libraries(
-  debugger.bin
+  service.bin
  PRIVATE
-  vision
+  is-wire::is-wire
   skeletons
-  skeletons_msgs
-  is-msgs::is-msgs # must be placed before is-wire
-  armadillo::armadillo
-  opencv::opencv
+  vision
 )
 
-set_property(TARGET debugger.bin PROPERTY CXX_STANDARD 14)
+set_property(TARGET service.bin PROPERTY CXX_STANDARD 14)

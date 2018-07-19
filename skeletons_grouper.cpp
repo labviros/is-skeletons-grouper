@@ -109,8 +109,7 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
   this->F = compute_fundamentals_matrix(this->calibrations, this->referencial);
 }
 
-ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d,
-                                          std::unordered_map<int64_t, cv::Mat>& images) {
+ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d) {
   // TODO: check if cameras received are available
   this->data.update(sks_2d);
   if (this->data.n_skeletons() < 2) return ObjectAnnotations();
@@ -120,7 +119,7 @@ ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnno
   for (auto& cam0 : cameras) {
     for (auto& cam1 : cameras) {
       if (cam0 == cam1) continue;
-      auto ms = this->find_matches(cam0, cam1, images);
+      auto ms = this->find_matches(cam0, cam1);
       std::for_each(ms.begin(), ms.end(), [&](auto& m) {
         matches[m.first].push_back(m.second);
         matches[m.second].push_back(m.first);
@@ -139,9 +138,7 @@ ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnno
   return make_3d_skeletons(groups);
 }
 
-std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
-                                                                int64_t cam1,
-                                                                std::unordered_map<int64_t, cv::Mat>& images) {
+std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0, int64_t cam1) {
   /*
     'cam0' -> reference camera
     'cam1' -> destination camera
@@ -175,29 +172,6 @@ std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0,
       auto m_error0 = mean_distance(sk0_points, lines0, parts);
       auto m_error1 = mean_distance(sk1_points, lines1, parts);
       auto error = m_error0 + m_error1;
-
-      if (true) {  // debug
-        std::cout << "[cam" << cam0 << "]->[cam" << cam1 << "] error: " << m_error0 << " | " << m_error1 << '\n';
-        cv::Mat img0 = images[cam0].clone();
-        cv::Mat img1 = images[cam1].clone();
-
-        render_skeletons(img0, sk0_data, common_parts);
-        render_skeletons(img1, sk1_data, common_parts);
-        render_epipolar_lines(img0, lines0, common_parts);
-        render_epipolar_lines(img1, lines1, common_parts);
-
-        cv::resize(img0, img0, cv::Size(0, 0), 0.5, 0.5);
-        cv::resize(img1, img1, cv::Size(0, 0), 0.5, 0.5);
-
-        cv::imshow("cam0", img0);
-        cv::imshow("cam1", img1);
-        // cv::waitKey(1);
-        while (true) {
-          auto key = cv::waitKey(1);
-          if (key == 'n' || key == 'N') break;
-        }
-      }
-
       if (error > this->max_mean_d) continue;
 
       auto& id0 = sk0_data->id;
@@ -320,27 +294,4 @@ PointAnnotation SkeletonsGrouper::make_3d_part(arma::uword const& part, std::vec
   sk_part.mutable_position()->set_z(X[2]);
   sk_part.set_id(this->part_index_map.by<col_index>().at(part));
   return sk_part;
-}
-
-void render_skeletons(cv::Mat& image, HSkeleton_ptr& sk_data, std::vector<arma::uword>& common_parts) {
-  auto& parts = sk_data->parts;
-  auto& points = sk_data->points;
-  for (auto& part : parts) {
-    auto pos = std::find(common_parts.begin(), common_parts.end(), part);
-    auto color = pos == common_parts.end() ? cv::Scalar(255, 0, 0) : cv::Scalar(0, 255, 0);
-    cv::Point p(points(0, part), points(1, part));
-    cv::circle(image, p, 3, color, 3);
-  }
-}
-
-void render_epipolar_lines(cv::Mat& image, arma::mat& lines, std::vector<arma::uword>& common_parts) {
-  auto w = image.cols;
-  for (auto& part : common_parts) {
-    auto a = lines(0, part);
-    auto b = lines(1, part);
-    auto c = lines(2, part);
-    cv::Point p1(0.0, -c / b);
-    cv::Point p2(w, -(c + w * a) / b);
-    cv::line(image, p1, p2, cv::Scalar(0, 255, 255), 2);
-  }
 }
