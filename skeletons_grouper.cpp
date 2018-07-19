@@ -258,6 +258,7 @@ ObjectAnnotations SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<in
       *skeleton->add_keypoints() = make_3d_part(part, skeletons);
     }
   }
+  sks_3d.set_frame_id(this->referencial);
   return sks_3d;
 }
 
