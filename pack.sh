@@ -8,7 +8,7 @@ if [[ $image_count == 0 ]]; then
 fi
 
 docker_user="viros"
-image_tag="${docker_user}/is-skeletons-grouper:2"
+image_tag="${docker_user}/is-skeletons-grouper:2.1"
 docker build . -f Dockerfile -t ${image_tag} --no-cache --network=host
 
 read -r -p "Do you want to push image ${image_tag}? [y/N] " response
