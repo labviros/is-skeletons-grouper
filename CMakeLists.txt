@@ -59,6 +59,7 @@ set_property(TARGET skeletons PROPERTY CXX_STANDARD 14)
 # # #### Build service binary
 # # ######
 
+find_package(zipkin-cpp-opentracing REQUIRED)
 add_executable(service.bin service.cpp ${options_hdr} ${options_src})
 
 target_include_directories(
@@ -71,6 +72,7 @@ target_link_libraries(
   service.bin
  PRIVATE
   is-wire::is-wire
+  zipkin-cpp-opentracing::zipkin-cpp-opentracing
   skeletons
   vision
 )
