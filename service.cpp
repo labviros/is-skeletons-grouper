@@ -38,17 +38,23 @@ auto make_frame_transformation(std::string const& topic, is::common::Tensor cons
   return maybe_transformation;
 }
 
-auto count_detections(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
+auto get_cameras(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
   std::vector<int64_t> cameras;
   std::transform(sks.begin(), sks.end(), std::back_inserter(cameras), [](auto& kv) { return kv.first; });
-  if (cameras.empty()) return std::string("");
   std::sort(cameras.begin(), cameras.end());
+  return cameras;
+}
+
+auto count_detections(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
+  auto cameras = get_cameras(sks);
+  if (cameras.empty()) return std::string("");
   auto formatter = [&](auto& c) { return fmt::format("{}({})", c, sks[c].objects().size()); };
   auto per_camera =
       std::accumulate(std::next(cameras.begin()), cameras.end(), formatter(cameras[0]), [&](std::string a, auto& c) {
         return a + ',' + formatter(c);
       });
-  auto total = std::accumulate(sks.begin(), sks.end(), 0, [](auto& a, auto& kv) { return a + kv.second.objects().size(); });
+  auto total =
+      std::accumulate(sks.begin(), sks.end(), 0, [](auto& a, auto& kv) { return a + kv.second.objects().size(); });
   return fmt::format("{} => {}", per_camera, total);
 }
 
@@ -62,12 +68,12 @@ int main(int argc, char** argv) {
   auto subscription = is::Subscription(channel);
 
   ZipkinOtTracerOptions zp_options;
-  zp_options.service_name = "Skeletons";
+  zp_options.service_name = "Skeletons.Localization";
   zp_options.collector_host = options.zipkin_host();
   zp_options.collector_port = options.zipkin_port();
   auto tracer = makeZipkinOtTracer(zp_options);
   channel.set_tracer(tracer);
-  auto span_name = fmt::format("localizations_{}", options.referencial());
+  auto span_name = "localization";
 
   is::vision::GetCalibrationRequest calibs_request;
   *calibs_request.mutable_ids() = options.cameras_ids();
@@ -150,17 +156,18 @@ int main(int argc, char** argv) {
     auto tf = system_clock::now();
 
     auto sks_message = is::Message(sks_3d);
-    sks_message.set_topic("Skeletons.Localizations");
+    sks_message.set_topic("Skeletons.Localization");
     sks_message.inject_tracing(tracer, span->context());
     channel.publish(sks_message);
 
     auto n_skeletons = sks_3d.objects().size();
+    auto detections_info = count_detections(sks_group);
     span->SetTag("Localizations", n_skeletons);
+    span->SetTag("Cameras(Detections)", detections_info);
     span->Finish();
 
     auto dt_ms = duration_cast<microseconds>(tf - t0).count() / 1000.0;
-    auto detections_info = count_detections(sks_group);
-    is::info("[{} (3D)][{} (2D)][{:>4.2f}ms]", n_skeletons, detections_info, dt_ms);
+    is::info("[{} (2D)][{} (3D)][{:>4.2f}ms]", detections_info, n_skeletons, dt_ms);
     deadline += period_ms;
   }
   return 0;
