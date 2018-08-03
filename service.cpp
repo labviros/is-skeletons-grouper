@@ -4,6 +4,7 @@
 #include "is/msgs/utils.hpp"
 #include "is/msgs/camera.pb.h"
 #include "is/msgs/image.pb.h"
+#include "is/msgs/validate.hpp"
 #include "options.pb.h"
 #include "google/protobuf/timestamp.pb.h"
 #include "skeletons_grouper.hpp"
@@ -14,7 +15,7 @@ using namespace zipkin;
 using namespace opentracing;
 
 auto get_id(std::string const& topic) {
-  auto const id_regex = std::regex("Skeletons.(\\d+).Detections");
+  auto const id_regex = std::regex("Skeletons.(\\d+).Detection");
   std::smatch matches;
   if (std::regex_match(topic, matches, id_regex))
     return std::stoi(matches[1]);
@@ -63,6 +64,8 @@ int main(int argc, char** argv) {
   is::SkeletonsGrouperOptions options;
   auto status = is::load(filename, &options);
   if (status.code() != is::wire::StatusCode::OK) is::critical("{}", status);
+  auto validate_status = is::validate_message(options);
+  if (validate_status.code() != is::wire::StatusCode::OK) is::critical("{}", validate_status);
 
   auto channel = is::Channel(options.broker_uri());
   auto subscription = is::Subscription(channel);
@@ -92,16 +95,16 @@ int main(int argc, char** argv) {
   for (auto& mc : maybe_calibrations->calibrations()) {
     calibrations[mc.id()] = mc;
   }
-  // check for referencial on calibrations
+  // check for referential on calibrations
   std::vector<int64_t> without_ref;
   for (auto& kv : calibrations) {
     auto begin = kv.second.extrinsic().begin();
     auto end = kv.second.extrinsic().end();
-    auto pos = std::find_if(begin, end, [&](auto& ext) { return ext.from() == options.referencial(); });
+    auto pos = std::find_if(begin, end, [&](auto& ext) { return ext.from() == options.referential(); });
     if (pos == end) {
       auto camera = kv.first;
       without_ref.push_back(camera);
-      auto tf_topic = fmt::format("FrameTransformation.{}.{}", options.referencial(), camera);
+      auto tf_topic = fmt::format("FrameTransformation.{}.{}", options.referential(), camera);
       subscription.subscribe(tf_topic);
     }
   }
@@ -122,9 +125,11 @@ int main(int argc, char** argv) {
   }
   if (!without_ref.empty()) { is::critical("Can't get all necessary transformations."); }
 
-  SkeletonsGrouper grouper(calibrations, options.referencial(), options.min_error());
+  SkeletonsGrouper grouper(calibrations, options.referential(), options.min_error());
+  std::unordered_map<int64_t, int64_t> not_received;
   for (auto& camera : options.cameras_ids()) {
-    subscription.subscribe(fmt::format("Skeletons.{}.Detections", camera));
+    subscription.subscribe(fmt::format("Skeletons.{}.Detection", camera));
+    not_received[camera] = 0;
   }
 
   std::unordered_map<int64_t, is::vision::ObjectAnnotations> sks_group;
@@ -133,13 +138,17 @@ int main(int argc, char** argv) {
   auto deadline = system_clock::now() + period_ms;
   for (;;) {
     bool has_ctx = false;
+    std::for_each(not_received.begin(), not_received.end(), [](auto& kv) { kv.second++; });
+
     while (true) {
       auto message = channel.consume_until(deadline);
       if (!message) break;
 
       auto skeletons = message->unpack<is::vision::ObjectAnnotations>();
       if (skeletons) {
-        sks_group[get_id(message->topic())] = *skeletons;
+        auto camera = get_id(message->topic());
+        sks_group[camera] = *skeletons;
+        not_received[camera] = 0;
         auto maybe_ctx = message->extract_tracing(tracer);
         if (maybe_ctx) {
           has_ctx = true;
@@ -147,6 +156,19 @@ int main(int argc, char** argv) {
         }
       } else {
         is::warn("Can't unpack message from \'{}\'", message->topic());
+      }
+    }
+
+    for (auto& kv : not_received) {
+      if (kv.second > options.release_samples()) {
+        auto camera = kv.first;
+        auto pos = sks_group.find(camera);
+        if (pos != sks_group.end()) {
+          if (sks_group.erase(pos->first) > 0) {
+            auto dt = options.release_samples() * options.period_ms();
+            is::warn("Didn't received any detections from camera \'{}\' in the last {}ms", camera, dt);
+          }
+        }
       }
     }
 
@@ -163,11 +185,11 @@ int main(int argc, char** argv) {
     auto n_skeletons = sks_3d.objects().size();
     auto detections_info = count_detections(sks_group);
     span->SetTag("Localizations", n_skeletons);
-    span->SetTag("Cameras(Detections)", detections_info);
+    span->SetTag("Camera(Detection)", detections_info);
     span->Finish();
 
     auto dt_ms = duration_cast<microseconds>(tf - t0).count() / 1000.0;
-    is::info("[{} (2D)][{} (3D)][{:>4.2f}ms]", detections_info, n_skeletons, dt_ms);
+    is::info("[(2D) {}][(3D) {:2d}][{:>4.2f}ms]", detections_info, n_skeletons, dt_ms);
     deadline += period_ms;
   }
   return 0;

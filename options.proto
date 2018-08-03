@@ -2,12 +2,22 @@ syntax = "proto3";
 
 package is;
 
+import "is/msgs/validate.proto";
+
 message SkeletonsGrouperOptions {
   string broker_uri = 1;
   string zipkin_host = 2;
   uint32 zipkin_port = 3;
+  // Ids of the cameras that will be used for group skeletons detections
   repeated int64 cameras_ids = 4;
-  int64 referencial = 5;
+  // Referential used for generate the output localizations
+  int64 referential = 5;
+  // Minimum error in pixels accepted for the proccess of groupping
   double min_error = 6;
-  uint32 period_ms = 7;
+  // Period in milliseconds of the rate that detections will be groupped
+  int32 period_ms = 7 [(is.validate.rules).int32 = {gte: 50, lte: 250}];
+  // Corresponds the number of samples that, in case of 
+  // not receive a message from an especific camera, 
+  // the buffer from this camera will be released
+  int32 release_samples = 8 [(is.validate.rules).int32 = {gte: 5, lte: 20}];
 }

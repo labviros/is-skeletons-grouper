@@ -16,7 +16,9 @@ endif()
 #### Build Options protobuf
 ######
 
+find_package(is-wire REQUIRED)
 find_package(Protobuf REQUIRED)
+get_target_property(Protobuf_IMPORT_DIRS is-msgs::is-msgs INTERFACE_INCLUDE_DIRECTORIES)
 PROTOBUF_GENERATE_CPP(options_src options_hdr options.proto)
 
 # ######
@@ -24,7 +26,6 @@ PROTOBUF_GENERATE_CPP(options_src options_hdr options.proto)
 # ######
 
 
-find_package(is-wire REQUIRED)
 find_package(armadillo REQUIRED)
 
 add_library(vision vision.cpp)
