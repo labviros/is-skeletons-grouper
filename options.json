@@ -6,6 +6,6 @@
   "referential": 1000,
   "min_error": 20.0,
   "min_score": 0.5,
-  "period_ms": 100,
+  "period_ms": 200,
   "release_samples": 5
 }

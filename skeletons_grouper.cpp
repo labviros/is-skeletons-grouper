@@ -140,6 +140,14 @@ ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnno
   return make_3d_skeletons(groups);
 }
 
+void SkeletonsGrouper::set_max_error(double const& max_error) {
+  this->max_mean_d = max_error;
+}
+
+void SkeletonsGrouper::set_min_score(double const& min_score) {
+  this->min_score = min_score;
+}
+
 std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0, int64_t cam1) {
   /*
     'cam0' -> reference camera
@@ -311,6 +319,7 @@ void SkeletonsGrouper::filter_by_score(std::unordered_map<int64_t, ObjectAnnotat
     auto pos = std::remove_if(objs->begin(), objs->end(), [](auto const& obj) { return obj.keypoints().empty(); });
     objs->erase(pos, objs->end());
   }
+  /*
   for (auto it = sks_2d.begin(); it != sks_2d.end();) {
     if (it->second.objects().empty()) {
       it = sks_2d.erase(it);
@@ -318,4 +327,5 @@ void SkeletonsGrouper::filter_by_score(std::unordered_map<int64_t, ObjectAnnotat
       it++;
     }
   }
+  */
 }

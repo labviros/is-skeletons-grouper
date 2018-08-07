@@ -41,7 +41,7 @@ function docker::rebuild_image {
 
 image_dev='is-skeletons-grouper/dev'
 docker_user="viros"
-remote_tag='is-skeletons-grouper:2.5'
+remote_tag='is-skeletons-grouper:2.6'
 
 if ! docker::has_image ${image_dev}; then
     docker::build_local ${image_dev} Dockerfile.dev

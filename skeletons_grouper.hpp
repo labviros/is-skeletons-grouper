@@ -57,6 +57,8 @@ class SkeletonsGrouper {
                    double min_score);
 
   ObjectAnnotations group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
+  void set_max_error(double const& max_error);
+  void set_min_score(double const& min_score);
 
  private:
   std::unordered_map<int64_t, CameraCalibration> calibrations;

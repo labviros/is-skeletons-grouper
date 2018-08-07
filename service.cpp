@@ -1,12 +1,16 @@
 #include <chrono>
 #include <regex>
 #include "is/wire/core.hpp"
+#include "is/wire/rpc.hpp"
+#include "is/wire/rpc/log-interceptor.hpp"
 #include "is/msgs/utils.hpp"
 #include "is/msgs/camera.pb.h"
 #include "is/msgs/image.pb.h"
 #include "is/msgs/validate.hpp"
 #include "options.pb.h"
 #include "google/protobuf/timestamp.pb.h"
+#include "google/protobuf/struct.pb.h"
+#include "google/protobuf/empty.pb.h"
 #include "skeletons_grouper.hpp"
 #include "zipkin/opentracing.h"
 
@@ -68,6 +72,8 @@ int main(int argc, char** argv) {
   if (validate_status.code() != is::wire::StatusCode::OK) is::critical("{}", validate_status);
 
   auto channel = is::Channel(options.broker_uri());
+  auto provider = is::ServiceProvider(channel);
+  provider.add_interceptor(is::LogInterceptor());
   auto subscription = is::Subscription(channel);
 
   ZipkinOtTracerOptions zp_options;
@@ -126,6 +132,29 @@ int main(int argc, char** argv) {
   if (!without_ref.empty()) { is::critical("Can't get all necessary transformations."); }
 
   SkeletonsGrouper grouper(calibrations, options.referential(), options.min_error(), options.min_score());
+  auto cams = std::accumulate(std::next(options.cameras_ids().begin()),
+                              options.cameras_ids().end(),
+                              std::to_string(*options.cameras_ids().begin()),
+                              [](auto& a, auto& b) { return fmt::format("{}.{}", a, b); });
+  auto endpoint = fmt::format("Skeletons.Localization.{}.Config", cams);
+  provider.delegate<google::protobuf::Struct, google::protobuf::Empty>(
+      endpoint, [&](is::Context*, google::protobuf::Struct const& request, google::protobuf::Empty*) {
+        auto fields = request.fields();
+        if (fields.find("max_error") != fields.end()) {
+          auto value = static_cast<double>(fields.at("max_error").number_value());
+          grouper.set_max_error(value);
+        }
+        if (fields.find("min_score") != fields.end()) {
+          auto value = static_cast<double>(fields.at("min_score").number_value());
+          if (value < 0.0 || value > 1.0) {
+            return is::make_status(is::wire::StatusCode::OUT_OF_RANGE,
+                                   "\'min_score\' must be greater or equal 0.0 and less and equal 1.0");
+          }
+          grouper.set_max_error(value);
+        }
+        return is::make_status(is::wire::StatusCode::OK);
+      });
+
   std::unordered_map<int64_t, int64_t> not_received;
   for (auto& camera : options.cameras_ids()) {
     subscription.subscribe(fmt::format("Skeletons.{}.Detection", camera));
@@ -143,6 +172,7 @@ int main(int argc, char** argv) {
     while (true) {
       auto message = channel.consume_until(deadline);
       if (!message) break;
+      if (provider.serve(*message)) continue;
 
       auto skeletons = message->unpack<is::vision::ObjectAnnotations>();
       if (skeletons) {
