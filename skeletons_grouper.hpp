@@ -53,7 +53,8 @@ class SkeletonsGrouper {
  public:
   SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration> calibrations,
                    int64_t const& referencial,
-                   double max_mean_d);
+                   double max_mean_d,
+                   double min_score);
 
   ObjectAnnotations group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
 
@@ -61,6 +62,7 @@ class SkeletonsGrouper {
   std::unordered_map<int64_t, CameraCalibration> calibrations;
   int64_t referencial;
   double max_mean_d;
+  double min_score;
   SkeletonsData data;
   HumanKeypointIndex part_index_map;
   std::unordered_map<int64_t /* destination camera */, std::unordered_map<int64_t /* reference camera */, arma::mat>> F;
@@ -75,4 +77,5 @@ class SkeletonsGrouper {
 
   ObjectAnnotations make_3d_skeletons(std::vector<std::vector<int>>& groups);
   PointAnnotation make_3d_part(arma::uword const& part, std::vector<unsigned int>& skeletons);
+  void filter_by_score(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d); 
 };

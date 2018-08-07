@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
   }
   if (!without_ref.empty()) { is::critical("Can't get all necessary transformations."); }
 
-  SkeletonsGrouper grouper(calibrations, options.referential(), options.min_error());
+  SkeletonsGrouper grouper(calibrations, options.referential(), options.min_error(), options.min_score());
   std::unordered_map<int64_t, int64_t> not_received;
   for (auto& camera : options.cameras_ids()) {
     subscription.subscribe(fmt::format("Skeletons.{}.Detection", camera));

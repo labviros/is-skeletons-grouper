@@ -14,6 +14,8 @@ message SkeletonsGrouperOptions {
   int64 referential = 5;
   // Minimum error in pixels accepted for the proccess of groupping
   double min_error = 6;
+  // Minimum score eligible for incoming joints
+  double min_score = 9 [(is.validate.rules).double = {gte: 0.0, lte: 1.0}];
   // Period in milliseconds of the rate that detections will be groupped
   int32 period_ms = 7 [(is.validate.rules).int32 = {gte: 50, lte: 250}];
   // Corresponds the number of samples that, in case of 

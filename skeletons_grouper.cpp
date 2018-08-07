@@ -74,8 +74,9 @@ void SkeletonsData::clear() {
 
 SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration> calibrations,
                                    int64_t const& referencial,
-                                   double max_mean_d = 50.0)
-    : calibrations(calibrations), referencial(referencial), max_mean_d(max_mean_d) {
+                                   double max_mean_d = 50.0,
+                                   double min_score = 0.0)
+    : calibrations(calibrations), referencial(referencial), max_mean_d(max_mean_d), min_score(min_score) {
   const auto add_to_part_index_map = [&](std::string const& key_name, auto const& col_value) {
     const auto* descriptor = HumanKeypoints_descriptor();
     auto key_value = descriptor->FindValueByName(key_name)->number();
@@ -111,6 +112,7 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
 
 ObjectAnnotations SkeletonsGrouper::group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d) {
   // TODO: check if cameras received are available
+  filter_by_score(sks_2d);
   this->data.update(sks_2d);
   if (this->data.n_skeletons() < 2) return ObjectAnnotations();
 
@@ -295,4 +297,25 @@ PointAnnotation SkeletonsGrouper::make_3d_part(arma::uword const& part, std::vec
   sk_part.mutable_position()->set_z(X[2]);
   sk_part.set_id(this->part_index_map.by<col_index>().at(part));
   return sk_part;
+}
+
+void SkeletonsGrouper::filter_by_score(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d) {
+  for (auto& kv : sks_2d) {
+    auto objs = kv.second.mutable_objects();
+    for (auto& sk : *objs) {
+      auto pos = std::remove_if(sk.mutable_keypoints()->begin(), sk.mutable_keypoints()->end(), [&](auto const& kp) {
+        return kp.score() < this->min_score;
+      });
+      sk.mutable_keypoints()->erase(pos, sk.mutable_keypoints()->end());
+    }
+    auto pos = std::remove_if(objs->begin(), objs->end(), [](auto const& obj) { return obj.keypoints().empty(); });
+    objs->erase(pos, objs->end());
+  }
+  for (auto it = sks_2d.begin(); it != sks_2d.end();) {
+    if (it->second.objects().empty()) {
+      it = sks_2d.erase(it);
+    } else {
+      it++;
+    }
+  }
 }
