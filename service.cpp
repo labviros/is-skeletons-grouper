@@ -18,6 +18,31 @@ using namespace std::chrono;
 using namespace zipkin;
 using namespace opentracing;
 
+void filter_by_region(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks_group,
+                      google::protobuf::Map<int64_t, is::CameraConfig> configs) {
+  for (auto& kv : sks_group) {
+    auto camera = kv.first;
+    if (configs.find(camera) == configs.end()) continue;
+    auto config = configs.at(camera);
+    auto objs = kv.second.mutable_objects();
+    auto w = kv.second.resolution().width();
+    auto h = kv.second.resolution().height();
+    auto pos = std::remove_if(objs->begin(), objs->end(), [&](auto& obj) {
+      auto any = [&](auto predicate) { return std::any_of(obj.keypoints().begin(), obj.keypoints().end(), predicate); };
+      if (config.has_min_width())
+        if (any([&](auto& kp) { return kp.position().x() < config.min_width().value() * w; })) return true;
+      if (config.has_max_width())
+        if (any([&](auto& kp) { return kp.position().x() > config.max_width().value() * w; })) return true;
+      if (config.has_min_height())
+        if (any([&](auto& kp) { return kp.position().y() < config.min_height().value() * h; })) return true;
+      if (config.has_max_height())
+        if (any([&](auto& kp) { return kp.position().y() > config.max_height().value() * h; })) return true;
+      return false;
+    });
+    objs->erase(pos, objs->end());
+  }
+}
+
 auto get_id(std::string const& topic) {
   auto const id_regex = std::regex("Skeletons.(\\d+).Detection");
   std::smatch matches;
@@ -71,6 +96,11 @@ int main(int argc, char** argv) {
   auto validate_status = is::validate_message(options);
   if (validate_status.code() != is::wire::StatusCode::OK) is::critical("{}", validate_status);
 
+  std::vector<int64_t> cameras;
+  std::transform(options.cameras().begin(), options.cameras().end(), std::back_inserter(cameras), [](auto& kv) {
+    return kv.first;
+  });
+
   auto channel = is::Channel(options.broker_uri());
   auto provider = is::ServiceProvider(channel);
   provider.add_interceptor(is::LogInterceptor());
@@ -85,7 +115,7 @@ int main(int argc, char** argv) {
   auto span_name = "localization";
 
   is::vision::GetCalibrationRequest calibs_request;
-  *calibs_request.mutable_ids() = options.cameras_ids();
+  *calibs_request.mutable_ids() = {cameras.begin(), cameras.end()};
   auto request = is::Message(calibs_request);
   request.set_topic("FrameConversion.GetCalibration");
   request.set_reply_to(subscription);
@@ -132,10 +162,10 @@ int main(int argc, char** argv) {
   if (!without_ref.empty()) { is::critical("Can't get all necessary transformations."); }
 
   SkeletonsGrouper grouper(calibrations, options.referential(), options.min_error(), options.min_score());
-  auto cams = std::accumulate(std::next(options.cameras_ids().begin()),
-                              options.cameras_ids().end(),
-                              std::to_string(*options.cameras_ids().begin()),
-                              [](auto& a, auto& b) { return fmt::format("{}.{}", a, b); });
+  auto cams = std::accumulate(
+      std::next(cameras.begin()), cameras.end(), std::to_string(*cameras.begin()), [](auto& a, auto& b) {
+        return fmt::format("{}.{}", a, b);
+      });
   auto endpoint = fmt::format("Skeletons.Localization.{}.Config", cams);
   provider.delegate<google::protobuf::Struct, google::protobuf::Empty>(
       endpoint, [&](is::Context*, google::protobuf::Struct const& request, google::protobuf::Empty*) {
@@ -156,7 +186,7 @@ int main(int argc, char** argv) {
       });
 
   std::unordered_map<int64_t, int64_t> not_received;
-  for (auto& camera : options.cameras_ids()) {
+  for (auto& camera : cameras) {
     subscription.subscribe(fmt::format("Skeletons.{}.Detection", camera));
     not_received[camera] = 0;
   }
@@ -204,6 +234,7 @@ int main(int argc, char** argv) {
 
     auto span = has_ctx ? tracer->StartSpan(span_name, {ChildOf(last_ctx.get())}) : tracer->StartSpan(span_name);
     auto t0 = system_clock::now();
+    filter_by_region(sks_group, options.cameras());
     auto sks_3d = grouper.group(sks_group);
     auto tf = system_clock::now();
 

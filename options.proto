@@ -4,12 +4,23 @@ package is;
 
 import "is/msgs/validate.proto";
 
+message CameraConfig {
+  message DoubleValue {
+    double value = 1 [(is.validate.rules).double = {gte: 0.0, lte: 1.0}];
+  }
+  DoubleValue min_width = 2;
+  DoubleValue max_width = 3;
+  DoubleValue min_height = 4;
+  DoubleValue max_height = 5;
+}
+
 message SkeletonsGrouperOptions {
   string broker_uri = 1;
   string zipkin_host = 2;
   uint32 zipkin_port = 3;
   // Ids of the cameras that will be used for group skeletons detections
-  repeated int64 cameras_ids = 4;
+  // repeated int64 cameras_ids = 4;
+  map<int64, CameraConfig> cameras = 4;
   // Referential used for generate the output localizations
   int64 referential = 5;
   // Minimum error in pixels accepted for the proccess of groupping
