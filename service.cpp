@@ -28,7 +28,8 @@ int main(int argc, char** argv) {
 
   auto calibrations = request_calibrations(channel, subscription, cameras);
   update_extrinsics(channel, subscription, calibrations, options.referential());
-  SkeletonsGrouper grouper(calibrations, options.referential(), options.min_error(), options.min_score());
+  SkeletonsGrouper grouper(
+      calibrations, options.referential(), options.min_error(), options.min_score(), options.max_distance());
 
   auto cams = std::accumulate(
       std::next(cameras.begin()), cameras.end(), std::to_string(*cameras.begin()), [](auto& a, auto& b) {

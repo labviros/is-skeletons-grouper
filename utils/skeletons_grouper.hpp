@@ -11,7 +11,7 @@ using namespace boost::bimaps;
 
 struct col_index {};
 struct human_keypoint {};
-typedef bimap<tagged<int64_t/* HumanKeypoints */, human_keypoint>, tagged<arma::uword, col_index>> HumanKeypointIndex;
+typedef bimap<tagged<int64_t /* HumanKeypoints */, human_keypoint>, tagged<arma::uword, col_index>> HumanKeypointIndex;
 
 struct HSkeleton {
   HSkeleton(ObjectAnnotation* sk,
@@ -54,20 +54,24 @@ class SkeletonsGrouper {
   SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration> calibrations,
                    int64_t const& referencial,
                    double max_mean_d,
-                   double min_score);
+                   double min_score,
+                   double max_distance);
 
   ObjectAnnotations group(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
   void set_max_error(double const& max_error);
   void set_min_score(double const& min_score);
+  void set_max_distance(double const& max_distance);
 
  private:
   std::unordered_map<int64_t, CameraCalibration> calibrations;
   int64_t referencial;
   double max_mean_d;
   double min_score;
+  double max_distance;
   SkeletonsData data;
   HumanKeypointIndex part_index_map;
   std::unordered_map<int64_t /* destination camera */, std::unordered_map<int64_t /* reference camera */, arma::mat>> F;
+  std::vector<std::pair<int64_t, int64_t>> links;
 
  private:
   std::vector<std::pair<int, int>> find_matches(int64_t cam0, int64_t cam1);
@@ -79,5 +83,5 @@ class SkeletonsGrouper {
 
   ObjectAnnotations make_3d_skeletons(std::vector<std::vector<int>>& groups);
   PointAnnotation make_3d_part(arma::uword const& part, std::vector<unsigned int>& skeletons);
-  void filter_by_score(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d); 
+  void filter_by_score(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
 };

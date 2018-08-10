@@ -17,6 +17,8 @@ message SkeletonsGrouperOptions {
   double min_error = 6;
   // Minimum score eligible for incoming joints
   double min_score = 9 [(is.validate.rules).double = {gte: 0.0, lte: 1.0}];
+  // Maximum joint-joint distance acceptable. Must be in the same unit as extrinsic parameters.
+  double max_distance = 10 [(is.validate.rules).double = {gt: 0.0}];
   // Period in milliseconds of the rate that detections will be groupped
   int32 period_ms = 7 [(is.validate.rules).int32 = {gte: 50, lte: 250}];
   // Corresponds the number of samples that, in case of 

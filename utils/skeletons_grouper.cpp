@@ -75,8 +75,13 @@ void SkeletonsData::clear() {
 SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration> calibrations,
                                    int64_t const& referencial,
                                    double max_mean_d = 50.0,
-                                   double min_score = 0.0)
-    : calibrations(calibrations), referencial(referencial), max_mean_d(max_mean_d), min_score(min_score) {
+                                   double min_score = 0.5,
+                                   double max_distance = 0.75)
+    : calibrations(calibrations),
+      referencial(referencial),
+      max_mean_d(max_mean_d),
+      min_score(min_score),
+      max_distance(max_distance) {
   const auto add_to_part_index_map = [&](std::string const& key_name, auto const& col_value) {
     const auto* descriptor = HumanKeypoints_descriptor();
     auto key_value = descriptor->FindValueByName(key_name)->number();
@@ -105,8 +110,31 @@ SkeletonsGrouper::SkeletonsGrouper(std::unordered_map<int64_t, CameraCalibration
   add_to_part_index_map("CHEST", 19);
 
   this->data.set_index_map(this->part_index_map);
-  this->data.set_calibrations(this->calibrations);
 
+  const auto b_part = [&](std::string const& key_name) {
+    const auto* descriptor = HumanKeypoints_descriptor();
+    return descriptor->FindValueByName(key_name)->number();
+  };
+
+  this->links =
+      std::vector<std::pair<int64_t, int64_t>>{std::make_pair(b_part("NECK"), b_part("LEFT_SHOULDER")),
+                                               std::make_pair(b_part("LEFT_SHOULDER"), b_part("LEFT_ELBOW")),
+                                               std::make_pair(b_part("LEFT_ELBOW"), b_part("LEFT_WRIST")),
+                                               std::make_pair(b_part("NECK"), b_part("LEFT_HIP")),
+                                               std::make_pair(b_part("LEFT_HIP"), b_part("LEFT_KNEE")),
+                                               std::make_pair(b_part("LEFT_KNEE"), b_part("LEFT_ANKLE")),
+                                               std::make_pair(b_part("NECK"), b_part("RIGHT_SHOULDER")),
+                                               std::make_pair(b_part("RIGHT_SHOULDER"), b_part("RIGHT_ELBOW")),
+                                               std::make_pair(b_part("RIGHT_ELBOW"), b_part("RIGHT_WRIST")),
+                                               std::make_pair(b_part("NECK"), b_part("RIGHT_HIP")),
+                                               std::make_pair(b_part("RIGHT_HIP"), b_part("RIGHT_KNEE")),
+                                               std::make_pair(b_part("RIGHT_KNEE"), b_part("RIGHT_ANKLE")),
+                                               std::make_pair(b_part("NOSE"), b_part("LEFT_EYE")),
+                                               std::make_pair(b_part("LEFT_EYE"), b_part("LEFT_EAR")),
+                                               std::make_pair(b_part("NOSE"), b_part("RIGHT_EYE")),
+                                               std::make_pair(b_part("RIGHT_EYE"), b_part("RIGHT_EAR"))};
+
+  data.set_calibrations(this->calibrations);
   this->F = compute_fundamentals_matrix(this->calibrations, this->referencial);
 }
 
@@ -146,6 +174,10 @@ void SkeletonsGrouper::set_max_error(double const& max_error) {
 
 void SkeletonsGrouper::set_min_score(double const& min_score) {
   this->min_score = min_score;
+}
+
+void SkeletonsGrouper::set_max_distance(double const& max_distance) {
+  this->max_distance = max_distance;
 }
 
 std::vector<std::pair<int, int>> SkeletonsGrouper::find_matches(int64_t cam0, int64_t cam1) {
@@ -230,14 +262,14 @@ std::vector<std::vector<int>> SkeletonsGrouper::group_matches(std::vector<std::v
   auto n_labels = matches.size();
   std::vector<bool> visited(n_labels, false);
 
-  const std::function<void(int, std::vector<bool>&, std::vector<int>&)> traverse =
-      [&](int n, std::vector<bool>& visited, std::vector<int>& connected) {
-        visited[n] = true;
-        connected.push_back(n);
-        for (auto& k : matches[n]) {
-          if (!visited[k]) traverse(k, visited, connected);
-        }
-      };
+  const std::function<void(int, std::vector<bool>&, std::vector<int>&)> traverse = [&](
+      int n, std::vector<bool>& visited, std::vector<int>& connected) {
+    visited[n] = true;
+    connected.push_back(n);
+    for (auto& k : matches[n]) {
+      if (!visited[k]) traverse(k, visited, connected);
+    }
+  };
 
   for (size_t n = 0; n < n_labels; n++) {
     if (!visited[n]) {
@@ -260,12 +292,35 @@ ObjectAnnotations SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<in
       std::for_each(parts.begin(), parts.end(), [&](auto& part) { sk_parts[part].push_back(sk_id); });
     });
 
-    auto skeleton = sks_3d.add_objects();
+    std::unordered_map<int64_t, PointAnnotation> parts;
     for (auto& part_ids : sk_parts) {
       auto& part = part_ids.first;
       auto& skeletons = part_ids.second;
       if (skeletons.size() < 2) continue;
-      *skeleton->add_keypoints() = make_3d_part(part, skeletons);
+      auto body_part = make_3d_part(part, skeletons);
+      parts[body_part.id()] = body_part;
+    }
+
+    auto const to_arma = [](auto& pa) { return arma::mat({pa.position().x(), pa.position().y(), pa.position().z()}); };
+    std::unordered_set<int64_t> invalid_parts;
+    for (auto& link : this->links) {
+      auto has_begin = parts.find(link.first) != parts.end();
+      auto has_end = parts.find(link.second) != parts.end();
+      if (!(has_begin && has_end)) continue;
+      arma::mat p1 = to_arma(parts[link.first]);
+      arma::mat p2 = to_arma(parts[link.second]);
+      if (arma::norm(p2 - p1, 2) < 0.75) continue;
+      invalid_parts.insert(link.first);
+      invalid_parts.insert(link.second);
+    }
+    for (auto& ip : invalid_parts) {
+      parts.erase(ip);
+    }
+
+    if (parts.empty()) continue;
+    auto skeleton = sks_3d.add_objects();
+    for (auto& part : parts) {
+      *skeleton->add_keypoints() = part.second;
     }
   }
   sks_3d.set_frame_id(this->referencial);
