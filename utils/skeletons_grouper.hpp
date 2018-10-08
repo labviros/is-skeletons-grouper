@@ -76,7 +76,7 @@ class SkeletonsGrouper {
  private:
   std::vector<std::pair<int, int>> find_matches(int64_t cam0, int64_t cam1);
   /*
-    Based on algorith to group connected components in an undirected graph
+    Based on algorithm to group connected components in an undirected graph
     https://www.geeksforgeeks.org/connected-components-in-an-undirected-graph/
   */
   std::vector<std::vector<int>> group_matches(std::vector<std::vector<int>>& matches);

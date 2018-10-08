@@ -80,7 +80,7 @@ std::unordered_map<int64_t, is::vision::CameraCalibration> request_calibrations(
   is::vision::GetCalibrationRequest calibs_request;
   *calibs_request.mutable_ids() = {cameras.begin(), cameras.end()};
   auto request = is::Message(calibs_request);
-  request.set_topic("FrameConversion.GetCalibration");
+  request.set_topic("FrameTransformation.GetCalibration");
   request.set_reply_to(subscription);
   channel.publish(request);
 
@@ -135,10 +135,12 @@ void update_extrinsics(is::Channel& channel,
 is::SkeletonsGrouperOptions load_options(int argc, char** argv) {
   std::string filename = (argc == 2) ? argv[1] : "options.json";
   is::SkeletonsGrouperOptions options;
-  auto status = is::load(filename, &options);
-  if (status.code() != is::wire::StatusCode::OK) is::critical("{}", status);
-  auto validate_status = is::validate_message(options);
-  if (validate_status.code() != is::wire::StatusCode::OK) is::critical("{}", validate_status);
+  try {
+    is::load(filename, &options);
+    is::validate_message(options);
+  } catch(std::exception & e) {
+    is::critical("{}", e.what());
+  }
   // validate vertices
   auto not_unit = [](float const& c) { return c < 0.0 || c > 1.0; };
   for (auto& kv : options.cameras()) {

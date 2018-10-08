@@ -12,20 +12,22 @@ if (EXISTS ${CMAKE_BINARY_DIR}/conan_paths.cmake)
   include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 endif()
 
-#######
+######
 #### Build Options protobuf
 ######
 
-find_package(is-wire REQUIRED)
+find_package(is-msgs REQUIRED)
 find_package(Protobuf REQUIRED)
 get_target_property(Protobuf_IMPORT_DIRS is-msgs::is-msgs INTERFACE_INCLUDE_DIRECTORIES)
 PROTOBUF_GENERATE_CPP(options_src options_hdr options.proto)
 
- ######
-# #### Build Vision library
-# ######
+######
+#### Build Vision library
+######
 
-#find_package(is-wire REQUIRED)
+find_package(is-wire REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system filesystem)
+# find_package(boost REQUIRED)
 find_package(armadillo REQUIRED)
 
 add_library(vision vision.cpp)
@@ -34,14 +36,18 @@ target_link_libraries(
   vision
  PUBLIC
   armadillo::armadillo
+  Boost::filesystem
+  Boost::system
+  # boost::boost
+  is-msgs::is-msgs
  PRIVATE
   is-wire::is-wire
 )
 set_property(TARGET vision PROPERTY CXX_STANDARD 14)
 
-# ######
-# #### Build Skeletons library
-# ######
+######
+#### Build Skeletons library
+######
 
 add_library(skeletons skeletons_grouper.hpp skeletons_grouper.cpp)
 
@@ -55,9 +61,9 @@ target_link_libraries(
 
 set_property(TARGET skeletons PROPERTY CXX_STANDARD 14)
 
-# ######
-# #### Build utils library
-# ######
+######
+#### Build utils library
+######
 
 find_package(zipkin-cpp-opentracing REQUIRED)
 add_library(utils utils.hpp utils.cpp ${options_hdr} ${options_src})

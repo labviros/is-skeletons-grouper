@@ -8,13 +8,10 @@
 boost::optional<is::vision::CameraCalibration> load_calib(std::string const& path) {
   boost::optional<is::vision::CameraCalibration> maybe_calibration;
   is::vision::CameraCalibration calibration;
-
-  auto status = is::load(path, &calibration);
-  if (status.code() == is::wire::StatusCode::OK) {
+  try {
+    is::load(path, &calibration);
     maybe_calibration = calibration;
-  } else {
-    is::warn("Failed to load file: {}", status.why());
-  }
+  } catch (std::exception& e) { is::warn("Failed to load file: {}", e.what()); }
   return maybe_calibration;
 }
 
@@ -148,7 +145,9 @@ arma::mat intrinsic_scale_matrix(is::vision::Resolution const& image_res, is::vi
   auto sx = static_cast<double>(image_res.width()) / static_cast<double>(camera_res.width());
   auto sy = static_cast<double>(image_res.height()) / static_cast<double>(camera_res.height());
   arma::mat sc = {
-      {sx, 0.0, 0.0}, {0.0, sy, 0.0}, {0.0, 0.0, 1.0},
+      {sx, 0.0, 0.0},
+      {0.0, sy, 0.0},
+      {0.0, 0.0, 1.0},
   };
   return sc;
 }

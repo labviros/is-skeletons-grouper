@@ -1,5 +1,6 @@
 #include <chrono>
 #include "is/wire/core.hpp"
+#include "is/wire/core/status.hpp"
 #include "is/wire/rpc.hpp"
 #include "is/wire/rpc/log-interceptor.hpp"
 #include "is/msgs/image.pb.h"

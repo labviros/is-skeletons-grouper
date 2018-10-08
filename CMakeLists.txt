@@ -18,6 +18,7 @@ add_subdirectory(utils)
 # # #### Build service binary
 # # ######
 
+find_package(is-msgs REQUIRED)
 find_package(is-wire REQUIRED)
 add_executable(service.bin service.cpp)
 
@@ -25,6 +26,7 @@ target_link_libraries(
   service.bin
  PRIVATE
   is-wire::is-wire
+  is-msgs::is-msgs
   utils # must be place here due to libcurl linking error
   skeletons
   vision
