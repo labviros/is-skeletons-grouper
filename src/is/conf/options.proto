@@ -9,6 +9,9 @@ message SkeletonsGrouperOptions {
   string broker_uri = 1;
   string zipkin_host = 2;
   uint32 zipkin_port = 3;
+  // Unique id that identifies a group of differente sources used
+  // to group and localize skeletons detections
+  int32 id = 11[(is.validate.rules).int32 = {gte: 0}];
   // Ids of the cameras that will be used for group skeletons detections
   map<int64, is.vision.BoundingPoly> cameras = 4;
   // Referential used for generate the output localizations

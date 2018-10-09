@@ -26,7 +26,7 @@ boost::optional<is::vision::FrameTransformation> make_frame_transformation(std::
 
 std::vector<int64_t> get_cameras(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks);
 
-std::string count_detections(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks);
+std::string detections_info(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks);
 
 std::unordered_map<int64_t, is::vision::CameraCalibration> request_calibrations(is::Channel& channel,
                                                                                 is::Subscription& subscription,

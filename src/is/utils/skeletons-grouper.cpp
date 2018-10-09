@@ -1,4 +1,4 @@
-#include "skeletons_grouper.hpp"
+#include "skeletons-grouper.hpp"
 
 HSkeleton::HSkeleton(ObjectAnnotation* sk,
                      int64_t const& camera,

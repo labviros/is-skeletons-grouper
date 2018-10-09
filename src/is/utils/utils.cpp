@@ -29,12 +29,12 @@ void filter_by_region(std::unordered_map<int64_t, is::vision::ObjectAnnotations>
 }
 
 int64_t get_id(std::string const& topic) {
-  auto const id_regex = std::regex("Skeletons.(\\d+).Detection");
+  auto const id_regex = std::regex("SkeletonsDetector.(\\d+).Detection");
   std::smatch matches;
   if (std::regex_match(topic, matches, id_regex))
     return std::stoi(matches[1]);
   else
-    throw std::runtime_error(fmt::format("Wrong fromat topic: \'{}\'", topic));
+    throw std::runtime_error(fmt::format("Wrong format topic: \'{}\'", topic));
 }
 
 boost::optional<is::vision::FrameTransformation> make_frame_transformation(std::string const& topic,
@@ -61,17 +61,14 @@ std::vector<int64_t> get_cameras(std::unordered_map<int64_t, is::vision::ObjectA
   return cameras;
 }
 
-std::string count_detections(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
+std::string detections_info(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
   auto cameras = get_cameras(sks);
   if (cameras.empty()) return std::string("");
-  auto formatter = [&](auto& c) { return fmt::format("{}({})", c, sks[c].objects().size()); };
-  auto per_camera =
-      std::accumulate(std::next(cameras.begin()), cameras.end(), formatter(cameras[0]), [&](std::string a, auto& c) {
-        return a + ',' + formatter(c);
-      });
-  auto total =
-      std::accumulate(sks.begin(), sks.end(), 0, [](auto& a, auto& kv) { return a + kv.second.objects().size(); });
-  return fmt::format("{} => {}", per_camera, total);
+  auto formatter = [&](auto& c) { return fmt::format(" \'{}\': {}", c, sks[c].objects().size()); };
+  auto begin = cameras.begin();
+  auto end = cameras.end();
+  auto second = std::next(begin);
+  return std::accumulate(second, end, formatter(*begin), [&](auto& a, auto& c) { return a + ',' + formatter(c); });
 }
 
 std::unordered_map<int64_t, is::vision::CameraCalibration> request_calibrations(is::Channel& channel,
@@ -138,9 +135,7 @@ is::SkeletonsGrouperOptions load_options(int argc, char** argv) {
   try {
     is::load(filename, &options);
     is::validate_message(options);
-  } catch(std::exception & e) {
-    is::critical("{}", e.what());
-  }
+  } catch (std::exception& e) { is::critical("{}", e.what()); }
   // validate vertices
   auto not_unit = [](float const& c) { return c < 0.0 || c > 1.0; };
   for (auto& kv : options.cameras()) {

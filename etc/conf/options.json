@@ -2,11 +2,12 @@
   "broker_uri": "amqp://192.168.1.105:30000",
   "zipkin_host": "192.168.1.105",
   "zipkin_port": 30200,
+  "id": 0,
   "cameras": {
     "0" : {},
     "1" : {},
     "2" : {},
-    "3" : {},
+    "3" : {}
   },
   "referential": 1000,
   "min_error": 30.0,
