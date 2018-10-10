@@ -10,6 +10,8 @@ Streams
 | ---- | --------------------- | ---------------------- | ----------- |
 | SkeletonsGrouper.(GROUP_ID).Localize | **SkeletonsDetector.(ID).Detection** [ObjectAnnotations] | **SkeletonsGrouper.(GROUP_ID).Localization** [ObjectAnnotations] | Groups and localizes skeletons detections from different sources and publishes three-dimensional skeletons in the given frame. |
 
+[ObjectAnnotations]: https://github.com/labviros/is-msgs/blob/modern-cmake/docs/README.md#is.vision.ObjectAnnotations
+
 RPCs
 ---
 | Service | Request | Reply | Description |
