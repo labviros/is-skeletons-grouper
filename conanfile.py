@@ -14,7 +14,7 @@ class IsSkeletonsGrouperServiceConan(ConanFile):
         "build_tests": [True, False],
     }
     default_options = "shared=False", "fPIC=True", "build_tests=False"
-    generators = "cmake", "cmake_find_package", "cmake_paths"
+    generators = "cmake", "cmake_find_package", "cmake_paths", "virtualrunenv"
     requires = (
         "is-msgs/1.1.8@is/stable",
         "is-wire/1.1.4@is/stable",
