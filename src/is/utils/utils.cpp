@@ -37,23 +37,6 @@ int64_t get_id(std::string const& topic) {
     throw std::runtime_error(fmt::format("Wrong format topic: \'{}\'", topic));
 }
 
-boost::optional<is::vision::FrameTransformation> make_frame_transformation(std::string const& topic,
-                                                                           is::common::Tensor const& tf) {
-  boost::optional<is::vision::FrameTransformation> maybe_transformation;
-  auto const id_regex = std::regex("FrameTransformation.(\\d+).(\\d+)");
-  std::smatch matches;
-  if (std::regex_match(topic, matches, id_regex)) {
-    if (matches.size() == 3) {
-      is::vision::FrameTransformation transformation;
-      transformation.set_from(std::stoi(matches[1]));
-      transformation.set_to(std::stoi(matches[2]));
-      *transformation.mutable_tf() = tf;
-      maybe_transformation = transformation;
-    }
-  }
-  return maybe_transformation;
-}
-
 std::vector<int64_t> get_cameras(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
   std::vector<int64_t> cameras;
   std::transform(sks.begin(), sks.end(), std::back_inserter(cameras), [](auto& kv) { return kv.first; });
@@ -117,9 +100,7 @@ void update_extrinsics(is::Channel& channel,
   while (!without_ref.empty()) {
     auto msg = channel.consume_until(consume_deadline);
     if (!msg) break;
-    auto maybe_tensor = msg->unpack<is::common::Tensor>();
-    if (!maybe_tensor) continue;
-    auto maybe_transformation = make_frame_transformation(msg->topic(), *maybe_tensor);
+    auto maybe_transformation = msg->unpack<is::vision::FrameTransformation>();
     if (!maybe_transformation) continue;
     auto camera = maybe_transformation->to();
     *calibrations[camera].add_extrinsic() = *maybe_transformation;

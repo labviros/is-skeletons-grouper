@@ -21,9 +21,6 @@ void filter_by_region(std::unordered_map<int64_t, is::vision::ObjectAnnotations>
 
 int64_t get_id(std::string const& topic);
 
-boost::optional<is::vision::FrameTransformation> make_frame_transformation(std::string const& topic,
-                                                                           is::common::Tensor const& tf);
-
 std::vector<int64_t> get_cameras(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks);
 
 std::string detections_info(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks);
