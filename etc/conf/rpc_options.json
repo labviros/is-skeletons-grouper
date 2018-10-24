@@ -1,0 +1,18 @@
+{
+  "broker_uri": "amqp://192.168.1.105:30000",
+  "zipkin_host": "192.168.1.105",
+  "zipkin_port": 30200,
+  "id": 0,
+  "cameras": {
+    "0" : { "vertices": [{"x": 0.31, "y": 0.0}, {"x": 0.78, "y": 1.0}]},
+    "1" : { "vertices": [{"x": 0.21, "y": 0.0}, {"x": 0.71, "y": 1.0}]},
+    "2" : { "vertices": [{"x": 0.31, "y": 0.0}, {"x": 0.78, "y": 1.0}]},
+    "3" : { "vertices": [{"x": 0.16, "y": 0.0}, {"x": 0.68, "y": 1.0}]}
+  },
+  "referential": 1000,
+  "min_error": 50.0,
+  "min_score": 0.4,
+  "max_distance": 0.8,
+  "period_ms": 100,
+  "release_samples": 5
+}

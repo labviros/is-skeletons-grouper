@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
           for (auto& objects : request.list()) {
             sks_group[objects.frame_id()] = objects;
           }
+          filter_by_region(sks_group, options.cameras());
           *reply = grouper.group(sks_group);
           return is::make_status(is::wire::StatusCode::OK);
         } catch (...) { return is::make_status(is::wire::StatusCode::INTERNAL_ERROR); }
