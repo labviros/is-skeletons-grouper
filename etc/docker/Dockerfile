@@ -11,7 +11,7 @@ RUN mkdir -v -p /tmp/deploy                                             \
       cp --verbose --parents $lib /tmp/deploy;                          \
       libdir=`dirname $lib`;                                            \
     done                                                                \
-  && cp --verbose `find build/ -type f -name 'service.bin'` /tmp/deploy \
+  && cp --verbose `find build/ -type f -name '*.bin'` /tmp/deploy \
   && cp --verbose etc/conf/options.json /tmp/deploy                     \
   && sudo rm -rf build/
 
@@ -20,4 +20,5 @@ FROM ubuntu:16.04
 WORKDIR /opt/is
 COPY --from=build /tmp/deploy /
 RUN mv /service.bin /opt/is
+RUN mv /rpc.bin /opt/is
 RUN mv /options.json /opt/is

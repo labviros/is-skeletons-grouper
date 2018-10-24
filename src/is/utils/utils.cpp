@@ -94,6 +94,7 @@ void update_extrinsics(is::Channel& channel,
       subscription.subscribe(tf_topic);
     }
   }
+  if (without_ref.empty()) return;
 
   is::info("Waiting for 5 seconds to necessary transformations");
   auto consume_deadline = system_clock::now() + seconds(5);

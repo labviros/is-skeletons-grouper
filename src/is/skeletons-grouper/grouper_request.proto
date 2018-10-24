@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+import "is/msgs/image.proto";
+
+message MultipleObjectAnnotations {
+  repeated is.vision.ObjectAnnotations list = 1; 
+}
