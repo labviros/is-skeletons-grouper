@@ -8,6 +8,7 @@ HSkeleton::HSkeleton(ObjectAnnotation* sk,
     : skeleton(sk),
       camera(camera),
       id(id),
+      person_id(sk->id()),
       points(3, part_index_map.size(), arma::fill::ones),
       scale_intrinsic(scale_intrinsic) {
   for (auto& part : sk->keypoints()) {
@@ -262,14 +263,14 @@ std::vector<std::vector<int>> SkeletonsGrouper::group_matches(std::vector<std::v
   auto n_labels = matches.size();
   std::vector<bool> visited(n_labels, false);
 
-  const std::function<void(int, std::vector<bool>&, std::vector<int>&)> traverse = [&](
-      int n, std::vector<bool>& visited, std::vector<int>& connected) {
-    visited[n] = true;
-    connected.push_back(n);
-    for (auto& k : matches[n]) {
-      if (!visited[k]) traverse(k, visited, connected);
-    }
-  };
+  const std::function<void(int, std::vector<bool>&, std::vector<int>&)> traverse =
+      [&](int n, std::vector<bool>& visited, std::vector<int>& connected) {
+        visited[n] = true;
+        connected.push_back(n);
+        for (auto& k : matches[n]) {
+          if (!visited[k]) traverse(k, visited, connected);
+        }
+      };
 
   for (size_t n = 0; n < n_labels; n++) {
     if (!visited[n]) {
@@ -309,7 +310,7 @@ ObjectAnnotations SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<in
       if (!(has_begin && has_end)) continue;
       arma::mat p1 = to_arma(parts[link.first]);
       arma::mat p2 = to_arma(parts[link.second]);
-      if (arma::norm(p2 - p1, 2) < 0.75) continue;
+      if (arma::norm(p2 - p1, 2) < this->max_distance) continue;
       invalid_parts.insert(link.first);
       invalid_parts.insert(link.second);
     }
@@ -319,6 +320,7 @@ ObjectAnnotations SkeletonsGrouper::make_3d_skeletons(std::vector<std::vector<in
 
     if (parts.empty()) continue;
     auto skeleton = sks_3d.add_objects();
+    skeleton->set_id(this->get_group_id(group));
     for (auto& part : parts) {
       *skeleton->add_keypoints() = part.second;
     }
@@ -360,6 +362,19 @@ PointAnnotation SkeletonsGrouper::make_3d_part(arma::uword const& part, std::vec
   sk_part.mutable_position()->set_z(X[2]);
   sk_part.set_id(this->part_index_map.by<col_index>().at(part));
   return sk_part;
+}
+
+int SkeletonsGrouper::get_group_id(std::vector<int>& group) {
+  std::vector<int> ids;
+  std::transform(group.begin(), group.end(), std::back_inserter(ids), [&](auto& sk_id) {
+    return this->data.by_id()[sk_id]->person_id;
+  });
+
+  std::sort(ids.begin(), ids.end());
+  auto last = std::unique(ids.begin(), ids.end());
+  ids.erase(last, ids.end());
+
+  return ids.size() == 1 ? ids.front() : -1;
 }
 
 void SkeletonsGrouper::filter_by_score(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d) {

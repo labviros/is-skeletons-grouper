@@ -22,6 +22,7 @@ struct HSkeleton {
   ObjectAnnotation* skeleton;
   int64_t camera;
   unsigned int id;
+  int person_id;
   std::set<arma::uword> parts;
   arma::mat points;
   arma::mat scale_intrinsic;
@@ -83,5 +84,6 @@ class SkeletonsGrouper {
 
   ObjectAnnotations make_3d_skeletons(std::vector<std::vector<int>>& groups);
   PointAnnotation make_3d_part(arma::uword const& part, std::vector<unsigned int>& skeletons);
+  int get_group_id(std::vector<int>& group);
   void filter_by_score(std::unordered_map<int64_t, ObjectAnnotations>& sks_2d);
 };

@@ -27,5 +27,5 @@ message SkeletonsGrouperOptions {
   // Corresponds the number of samples that, in case of 
   // not receive a message from an especific camera, 
   // the buffer from this camera will be released
-  int32 release_samples = 8 [(is.validate.rules).int32 = {gte: 5, lte: 20}];
+  int32 release_samples = 8 [(is.validate.rules).int32 = {gte: 1, lte: 20}];
 }

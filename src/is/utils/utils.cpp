@@ -72,6 +72,7 @@ std::unordered_map<int64_t, is::vision::CameraCalibration> request_calibrations(
 
   std::unordered_map<int64_t, is::vision::CameraCalibration> calibrations;
   for (auto& mc : maybe_calibrations->calibrations()) {
+    is::info("Calibration from camera {} received.", mc.id());
     calibrations[mc.id()] = mc;
   }
   return calibrations;
