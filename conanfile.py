@@ -3,7 +3,7 @@ from conans import ConanFile, CMake, tools
 
 class IsSkeletonsGrouperServiceConan(ConanFile):
     name = "is-skeletons-grouper"
-    version = "0.0.1"
+    version = "0.0.3"
     license = "MIT"
     url = "https://github.com/labviros/is-skeletons-grouper"
     description = ""
@@ -16,8 +16,8 @@ class IsSkeletonsGrouperServiceConan(ConanFile):
     default_options = "shared=False", "fPIC=True", "build_tests=False"
     generators = "cmake", "cmake_find_package", "cmake_paths", "virtualrunenv"
     requires = (
-        "is-msgs/1.1.8@is/stable",
-        "is-wire/1.1.4@is/stable",
+        "is-msgs/1.1.10@is/stable",
+        "is-wire/1.1.5@is/stable",
         "zipkin-cpp-opentracing/0.3.1@is/stable",
         "armadillo/8.500.1@is/stable",
         "boost/1.66.0@conan/stable",

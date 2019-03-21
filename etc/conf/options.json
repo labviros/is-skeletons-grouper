@@ -1,7 +1,7 @@
 {
-  "broker_uri": "amqp://192.168.1.105:30000",
-  "zipkin_host": "192.168.1.105",
-  "zipkin_port": 30200,
+  "broker_uri": "amqp://localhost:5672",
+  "zipkin_host": "localhost",
+  "zipkin_port": 9411,
   "id": 0,
   "cameras": {
     "0" : {},
