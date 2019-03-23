@@ -22,11 +22,12 @@ int main(int argc, char** argv) {
   std::sort(cameras.begin(), cameras.end());
 
   auto channel = is::Channel(options.broker_uri());
+  auto tracer = make_tracer(options, "SkeletonsGrouper");
+  channel.set_tracer(tracer);
+
   auto provider = is::ServiceProvider(channel);
   provider.add_interceptor(is::LogInterceptor());
   auto subscription = is::Subscription(channel, fmt::format("SkeletonsGrouper.{}.Localize", options.id()));
-  auto tracer = make_tracer(options, "SkeletonsGrouper");
-  channel.set_tracer(tracer);
 
   auto calibrations = request_calibrations(channel, subscription, cameras);
   update_extrinsics(channel, subscription, calibrations, options.referential());

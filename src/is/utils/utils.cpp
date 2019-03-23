@@ -47,7 +47,7 @@ std::vector<int64_t> get_cameras(std::unordered_map<int64_t, is::vision::ObjectA
 std::string detections_info(std::unordered_map<int64_t, is::vision::ObjectAnnotations>& sks) {
   auto cameras = get_cameras(sks);
   if (cameras.empty()) return std::string("");
-  auto formatter = [&](auto& c) { return fmt::format(" \'{}\': {}", c, sks[c].objects().size()); };
+  auto formatter = [&](auto& c) { return fmt::format(" {}: {}", c, sks[c].objects().size()); };
   auto begin = cameras.begin();
   auto end = cameras.end();
   auto second = std::next(begin);

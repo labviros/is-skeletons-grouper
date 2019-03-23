@@ -17,11 +17,12 @@ int main(int argc, char** argv) {
   std::sort(cameras.begin(), cameras.end());
 
   auto channel = is::Channel(options.broker_uri());
+  auto tracer = make_tracer(options, "SkeletonsGrouper");
+  channel.set_tracer(tracer);
+
   auto subscription = is::Subscription(channel);
   auto provider = is::ServiceProvider(channel);
   provider.add_interceptor(is::LogInterceptor());
-  auto tracer = make_tracer(options, "SkeletonsGrouper");
-  channel.set_tracer(tracer);
 
   auto calibrations = request_calibrations(channel, subscription, cameras);
   update_extrinsics(channel, subscription, calibrations, options.referential());
@@ -31,7 +32,7 @@ int main(int argc, char** argv) {
 
   auto endpoint = "SkeletonsGrouper.Localize";
   provider.delegate<MultipleObjectAnnotations, ObjectAnnotations>(
-      endpoint, [&](is::Context*, MultipleObjectAnnotations const& request, ObjectAnnotations* reply) {
+      endpoint, [&](is::Context* context, MultipleObjectAnnotations const& request, ObjectAnnotations* reply) {
         try {
           std::unordered_map<int64_t, is::vision::ObjectAnnotations> sks_group;
           for (auto& objects : request.list()) {
@@ -39,6 +40,11 @@ int main(int argc, char** argv) {
           }
           filter_by_region(sks_group, options.cameras());
           *reply = grouper.group(sks_group);
+
+          auto span = context->span();
+          span->SetTag("detections", fmt::format("{{{} }}", detections_info(sks_group)));
+          span->SetTag("localizations", reply->objects().size());
+
           return is::make_status(is::wire::StatusCode::OK);
         } catch (...) { return is::make_status(is::wire::StatusCode::INTERNAL_ERROR); }
       });
